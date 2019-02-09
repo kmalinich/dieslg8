@@ -5,4 +5,7 @@
 ._*
 .DS_Store
 
+/*.elf
+/*.hex
+
 /test/
