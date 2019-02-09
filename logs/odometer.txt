@@ -1,0 +1,15 @@
+Send 60 03 22 F1 50 to ECU 6F1
+
+You'll get a response from 660
+Send 60 02 22 XX XX to ECU 6F1
+
+(the XX XX depends on the above response to get through the gateway - not sure about this yet)
+You'll get a response from 660
+
+Send 60 30 00 00 to 6F1
+
+Receive from 660 XX XX XX XX YY YY YY YY
+
+The YY's will be your odometer.
+
+This isn't enough for you to get it done, but hopefully it will take you in the right direction. This above is from a 2015 BMW 328i. Good luck!
