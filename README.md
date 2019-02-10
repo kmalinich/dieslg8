@@ -58,6 +58,5 @@ Boost PSI | Fuel gauge %
   * KOMB87.prg
 * [My other work](https://github.com/kmalinich/node-bmw-ref)
 
-
 ## Greetz
-* @uholeschak
+* [@uholeschak](https://github.com/uholeschak)
