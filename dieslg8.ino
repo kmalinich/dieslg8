@@ -29,19 +29,6 @@ boolean sweep_done = 0;
 MCP_CAN CAN(SPI_CS_PIN);
 
 
-void led_blink() {
-	Serial.println("[dieslg8][LED] Blink");
-
-	// turn the LED on (HIGH is the voltage level)
-	Serial.println("[dieslg8][LED] HIGH");
-	digitalWrite(LED_BUILTIN, HIGH);
-	delay(250);
-
-	// turn the LED off by making the voltage LOW
-	Serial.println("[dieslg8][LED] LOW");
-	digitalWrite(LED_BUILTIN, LOW);
-}
-
 // Send CAN message
 void can_send(short address, byte a, byte b, byte c, byte d, byte e, byte f, byte g, byte h) {
 	// Serial.print("[dieslg8][CAN][SEND] 0x");
@@ -126,9 +113,11 @@ void gauge_sweep() {
 	can_send(0x6F1, 0x60, 0x05, 0x30, 0x21, 0x06, 0x12, 0x0E, 0xFF);
 
 	// Fuel to 1800 :: 100%
+	fuel_hijack_active = 1;
 	can_send(0x6F1, 0x60, 0x05, 0x30, 0x22, 0x06, 0x07, 0x08, 0xFF);
 
 	// Oil/cons to 1800 :: 100%
+	oil_hijack_active = 1;
 	can_send(0x6F1, 0x60, 0x05, 0x30, 0x23, 0x06, 0x07, 0x08, 0xFF);
 
 
@@ -147,14 +136,14 @@ void gauge_sweep() {
 }
 
 
-void fuel_hijack(boost_hpa) {
+void fuel_hijack() {
 	// Return if less than 15 psi
 	if (boost_hpa < 1034) {
 		fuel_reset();
 		return;
 	}
 
-	int steps = ((boost_hpa * 1.4506769825918762) - 40);
+	int steps = (boost_hpa - 1034) / 0.76611111111;
 
 	// Return if steps are out of bounds
 	if (steps < 0 || steps > 1800) {
@@ -179,7 +168,7 @@ void oil_hijack() {
 		return;
 	}
 
-	int steps = ((boost_hpa * 1.4506769825918762) - 40);
+	int steps = (boost_hpa - 1034) / 0.76611111111;
 
 	// Return if steps are out of bounds
 	if (steps < 0 || steps > 1800) {
@@ -199,11 +188,17 @@ void oil_hijack() {
 
 
 void fuel_reset() {
+	// Return if hijack is inactive
+	if (fuel_hijack_active == 0) return;
+
 	can_send(0x6F1, 0x60, 0x03, 0x30, 0x22, 0x00, 0xFF, 0xFF, 0xFF);
 	fuel_hijack_active = 0;
 }
 
 void oil_reset() {
+	// Return if hijack is inactive
+	if (oil_hijack_active == 0) return;
+
 	can_send(0x6F1, 0x60, 0x03, 0x30, 0x23, 0x00, 0xFF, 0xFF, 0xFF);
 	oil_hijack_active = 0;
 }
@@ -240,8 +235,6 @@ void loop() {
 
 	// Check if incoming data is available
 	if (CAN_MSGAVAIL == CAN.checkReceive()) {
-		// led_blink();
-
 		// Read CAN message data
 		// len : data length
 		// buf : data buffer
@@ -331,7 +324,7 @@ void loop() {
 				// Serial.print("[dieslg8][BST][PSI] ");
 				// Serial.println(boost_psi);
 
-				fuel_hijack(boost_hpa);
+				fuel_hijack();
 
 				break;
 
@@ -368,6 +361,7 @@ void loop() {
 
 	if (loop_count == 750) {
 		loop_count = 0;
+
 		// Serial.println("[dieslg8][LOOP]");
 		if (ignition_run == 1) {
 			status_messwertblock_lesen();
