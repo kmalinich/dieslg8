@@ -63,7 +63,7 @@ Run : C1 45 :: X - - - - - X X :: X - X - - - X -
 //                      GAUGE CMD/RST MSB  LSB
 0x6F1 => 0x60 0x05 0x30 0x20  0x06    0x12 0x3B 0xFF
 
-// Steps = (MSB * 256) + LSB
+// Steps = (MSB << 8) + LSB
 
 // Speedo
 4622 ::  260kph :: 0x6F1 => 0x60 0x05 0x30 0x20 0x06 0x12 0x3B 0xFF
@@ -90,6 +90,43 @@ can_send(0x6F1, 0x60, 0x05, 0x30, 0x2B, 0x00, 0x00, 0x00, 0x00);
 // Off
 19:03:56.556 -> [dieslg8][CAN][RECV] 0x6F1 => 60 03 30 2B 00 00 00 00
 
+
+
+// Get 0x076D : Boost actual
+// Multiplier : 0.091554
+20:16:49.059 -> [dieslg8][CAN][RECV] 0x6F1 => 12 04 2C 10 07 6D 00 00
+20:16:49.092 -> [dieslg8][CAN][RECV] 0x612 => F1 04 6C 10 2B 2D FF FF
+//                                                        ^^ ^^
+
+
+// Get data
+// 0x0C1C : [IPLAD] Ambient pressure
+// 0x076D : [IPUMG] Boost actual
+// Boost Multiplier   : 0.091554
+// Ambient multiplier : 0.030518
+
+20:46:06.940 -> [dieslg8][CAN][SEND] 0x6F1 => 12 06 2C 10 0C 1C 07 6D
+20:46:06.978 -> [dieslg8][CAN][RECV] 0x612 => F1 06 6C 10 80 E4 2B 2D
+//                                                        ^^ ^^ ^^ ^^
+
+
+ambient_hpa = buf[4]buf[5] * 0.030518;
+
+boost_hpa = buf[6]buf[7] * 0.091554;
+boost_psi = (boost_hpa - ambient_hpa) / 68.947572932;
+
+
+// Boost PSI example
+> ((0x2b2d * 0.091554) - (0x80e4 * 0.030518)) / 68.947572932;
+0.07214806538449045
+
+
+// Hijack
+
+unsigned int steps = boost_psi * 60;
+
+byte lsb = boost        & 0xFF || 0; // LSB
+byte msb = (boost >> 8) & 0xFF || 0; // MSB
 
 
 

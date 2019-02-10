@@ -2,7 +2,7 @@
 
 BOARD="arduino:avr:uno"
 OUTPUT="dieslg8.hex"
-PORT="/dev/${1-ttyUSB0}"
+PORT="/dev/${1-tty.usbmodem14201}"
 
 rm -f "${OUTPUT}"
 
