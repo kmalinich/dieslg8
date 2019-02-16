@@ -8,11 +8,37 @@ const int mask_ignition_acc = 0xC1; // buf[0]
 const int mask_ignition_run = 0xC5; // buf[0]
 const int mask_ignition_sta = 0xD5; // buf[0]
 
-unsigned int loop_count = 0;
+unsigned long loop_count_01 = 0;
+unsigned long loop_count_02 = 0;
 
-float ambient_hpa;
-float boost_hpa;
-float boost_psi;
+// 0 = ambient + boost actual
+// 1 = coolant + boost target
+unsigned int data_expected = 0;
+
+// Step limits for gauges
+const int steps_max_large = 4667; // Large gauges (speedo, tach)
+const int steps_max_small = 1800; // Small gauges (fuel %, oil)
+
+// Unit limits for gauges
+const int boost_psi_max = 40;
+const int coolant_c_max = 100;
+
+// 1 psi = 68.9475729318 hPa
+// 1 hPA = 0.0145037738 psi
+const float hpa2psi = 68.9475729318;
+const float psi2hpa = 0.0145037738;
+
+
+unsigned int ambient_hpa;
+unsigned int boost_hpa_actual;
+unsigned int boost_hpa_target;
+
+float boost_psi_actual;
+float boost_psi_target;
+
+float coolant_temp_c;
+
+boolean temp_flashed = 0;
 
 boolean fuel_hijack_active = 0;
 boolean oil_hijack_active  = 0;
@@ -31,11 +57,9 @@ MCP_CAN CAN(SPI_CS_PIN);
 
 // Send CAN message
 void can_send(short address, byte a, byte b, byte c, byte d, byte e, byte f, byte g, byte h) {
-	// Serial.print("[dieslg8][CAN][SEND] 0x");
+	// Serial.print("[dieslg8][CAN ][SEND] 0x");
 	// Serial.print(address, HEX);
 	// Serial.print(" => ");
-
-	// Print the data
 	// Serial.print(a, HEX); Serial.print(" ");
 	// Serial.print(b, HEX); Serial.print(" ");
 	// Serial.print(c, HEX); Serial.print(" ");
@@ -64,37 +88,73 @@ void can_send(short address, byte a, byte b, byte c, byte d, byte e, byte f, byt
 // 4B73 : EGR engine exhaust heating control
 // 4CAE : EGR position sensor plausibility
 void code_clear() {
-	Serial.println("[dieslg8][CAN][FUNC] Performing code clear");
+	Serial.println("[dieslg8][CAN ][FUNC] Performing code clear specific");
 
 	can_send(0x6F1, 0x12, 0x04, 0x18, 0x02, 0xFF, 0xFF, 0x00, 0x00); delay(75);
 
-	turn_l();
+	turn_set(0x01);
 	can_send(0x612, 0xF1, 0x10, 0x1A, 0x58, 0x08, 0x4C, 0xAE, 0xE1); delay(75);
 	can_send(0x6F1, 0x12, 0x30, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00); delay(75);
 	can_send(0x612, 0xF1, 0x23, 0x3F, 0xF1, 0x21, 0x4B, 0x39, 0x21); delay(75);
 	can_send(0x612, 0xF1, 0x24, 0x4A, 0x24, 0xE1, 0xFF, 0xFF, 0xFF); delay(75);
 
-	turn_r();
+	turn_set(0x02);
 	can_send(0x612, 0xF1, 0x21, 0x48, 0x5C, 0xE1, 0x4B, 0x73, 0xE1); delay(75);
 	can_send(0x6F1, 0x12, 0x03, 0x14, 0xFF, 0xFF, 0x00, 0x00, 0x00); delay(75);
 	can_send(0x612, 0xF1, 0x03, 0x7F, 0x14, 0x78, 0xFF, 0xFF, 0xFF); delay(75);
 	can_send(0x612, 0xF1, 0x03, 0x54, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF); delay(75);
 
 	turn_reset();
+
+	delay(75);
+
+	code_clear_all();
 }
 
+// Clear all DDE codes
+void code_clear_all() {
+	Serial.println("[dieslg8][CAN ][FUNC] Performing code clear all");
+
+	turn_set(0x01);
+
+	can_send(0x6F1, 0x12, 0x03, 0x04, 0xFF, 0xFF, 0x00, 0x00, 0x00); turn_set(0x02); delay(100);
+	can_send(0x6F1, 0x12, 0x03, 0x04, 0xFF, 0xFF, 0x00, 0x00, 0x00); turn_set(0x01); delay(100);
+	can_send(0x6F1, 0x12, 0x03, 0x04, 0xFF, 0xFF, 0x00, 0x00, 0x00); turn_set(0x02); delay(100);
+	can_send(0x6F1, 0x12, 0x03, 0x04, 0xFF, 0xFF, 0x00, 0x00, 0x00); turn_set(0x01); delay(100);
+	can_send(0x6F1, 0x12, 0x03, 0x04, 0xFF, 0xFF, 0x00, 0x00, 0x00); delay(100);
+
+	turn_reset();
+}
+
+void temp_flash() {
+	if (temp_flashed == 1) return;
+
+	Serial.println("[dieslg8][CAN ][FUNC] Performing coolant temp LED flash");
+
+	turn_set(0x01); delay(111);
+	turn_set(0x03); delay(111);
+	turn_set(0x02); delay(111);
+
+	turn_set(0x01); delay(111);
+	turn_set(0x03); delay(111);
+	turn_set(0x02); delay(111);
+
+	turn_set(0x01); delay(111);
+	turn_set(0x03); delay(111);
+	turn_set(0x02); delay(111);
+
+	turn_reset();
+
+	temp_flashed = 1;
+}
 
 // Illuminate turn signal LED(s) in the cluster
-void turn_both() {
-	can_send(0x6F1, 0x60, 0x05, 0x30, 0x2B, 0x06, 0x03, 0x04, 0x00);
-}
-
-void turn_l() {
-	can_send(0x6F1, 0x60, 0x05, 0x30, 0x2B, 0x06, 0x01, 0x04, 0x00);
-}
-
-void turn_r() {
-	can_send(0x6F1, 0x60, 0x05, 0x30, 0x2B, 0x06, 0x02, 0x04, 0x00);
+// led_mask:
+// 0x01 : Left
+// 0x02 : Right
+// 0x03 : Both
+void turn_set(unsigned int led_mask) {
+	can_send(0x6F1, 0x60, 0x05, 0x30, 0x2B, 0x06, led_mask, 0x04, 0x00);
 }
 
 // Reset turn signal LED(s) in the cluster
@@ -104,110 +164,133 @@ void turn_reset() {
 
 
 void gauge_sweep() {
-	Serial.println("[dieslg8][CAN][FUNC] Performing gauge sweep");
+	Serial.println("[dieslg8][CAN ][FUNC] Performing gauge sweep");
 
-	// Speedo to 4622 :: 260kph
-	can_send(0x6F1, 0x60, 0x05, 0x30, 0x20, 0x06, 0x12, 0x3B, 0xFF);
+	// Speedo/tach to steps_max_large
+	gauge_hijack(0x20, steps_max_large);
+	gauge_hijack(0x21, steps_max_large);
 
-	// Tach to 4667 :: 7000RPM
-	can_send(0x6F1, 0x60, 0x05, 0x30, 0x21, 0x06, 0x12, 0x0E, 0xFF);
+	// Fuel/oil to steps_max_small
+	fuel_hijack(steps_max_small);
+	oil_hijack(steps_max_small);
 
-	// Fuel to 1800 :: 100%
-	fuel_hijack_active = 1;
-	can_send(0x6F1, 0x60, 0x05, 0x30, 0x22, 0x06, 0x07, 0x08, 0xFF);
-
-	// Oil/cons to 1800 :: 100%
-	oil_hijack_active = 1;
-	can_send(0x6F1, 0x60, 0x05, 0x30, 0x23, 0x06, 0x07, 0x08, 0xFF);
-
-
-	// Speedo reset
 	delay(1000);
-	can_send(0x6F1, 0x60, 0x03, 0x30, 0x20, 0x00, 0xFF, 0xFF, 0xFF);
 
-	// Tach reset
-	can_send(0x6F1, 0x60, 0x03, 0x30, 0x21, 0x00, 0xFF, 0xFF, 0xFF);
-
-	// Fuel reset
-	fuel_reset();
-
-	// Oil/cons reset
-	oil_reset();
+	// Reset gauges
+	gauge_reset(0x20);
+	gauge_reset(0x21);
+	gauge_reset(0x22);
+	gauge_reset(0x23);
 }
 
 
-void fuel_hijack() {
-	// Return if less than 15 psi
-	if (boost_hpa < 1034) {
+void fuel_hijack_boost() {
+	// Return if less than 10 hPa
+	if (boost_hpa_actual < 10) {
 		fuel_reset();
 		return;
 	}
 
-	int steps = (boost_hpa - 1034) / 0.76611111111;
+	unsigned int steps = boost_hpa_actual * (steps_max_small / (boost_psi_max * hpa2psi));
+	fuel_hijack(steps);
+}
 
+void fuel_hijack(unsigned int steps) {
 	// Return if steps are out of bounds
-	if (steps < 0 || steps > 1800) {
+	if (steps < 0 || steps > steps_max_small) {
 		fuel_reset();
 		return;
 	}
-
-	// Serial.print("[dieslg8][HIJK][FUEL] Steps : ");
-	// Serial.println(steps);
-
-	uint8_t lsb = (steps % 256); // LSB
-	uint8_t msb = (steps / 256); // MSB
 
 	fuel_hijack_active = 1;
-	can_send(0x6F1, 0x60, 0x05, 0x30, 0x22, 0x06, msb, lsb, 0xFF);
+	gauge_hijack(0x22, steps);
 }
-
-void oil_hijack() {
-	// Return if less than 15 psi
-	if (boost_hpa < 1034) {
-		oil_reset();
-		return;
-	}
-
-	int steps = (boost_hpa - 1034) / 0.76611111111;
-
-	// Return if steps are out of bounds
-	if (steps < 0 || steps > 1800) {
-		oil_reset();
-		return;
-	}
-
-	// Serial.print("[dieslg8][HIJK][OIL] Steps : ");
-	// Serial.println(steps);
-
-	uint8_t lsb = (steps % 256); // LSB
-	uint8_t msb = (steps / 256); // MSB
-
-	oil_hijack_active = 1;
-	can_send(0x6F1, 0x60, 0x05, 0x30, 0x23, 0x06, msb, lsb, 0xFF);
-}
-
 
 void fuel_reset() {
 	// Return if hijack is inactive
 	if (fuel_hijack_active == 0) return;
-
-	can_send(0x6F1, 0x60, 0x03, 0x30, 0x22, 0x00, 0xFF, 0xFF, 0xFF);
+	gauge_reset(0x22);
 	fuel_hijack_active = 0;
+}
+
+
+void oil_hijack_boost() {
+	// Return if less than 10 hPa
+	if (boost_hpa_target < 10) {
+		oil_reset();
+		return;
+	}
+
+	unsigned int steps = boost_hpa_target * (steps_max_small / (boost_psi_max * hpa2psi));
+	oil_hijack(steps);
+}
+
+void oil_hijack_coolant() {
+	// Return if less than 10 hPa
+	if (coolant_temp_c < 0) {
+		oil_reset();
+		return;
+	}
+
+	unsigned int steps = coolant_temp_c * (steps_max_small / coolant_c_max);
+	oil_hijack(steps);
+}
+
+void oil_hijack(unsigned int steps) {
+	// Return if steps are out of bounds
+	if (steps < 0 || steps > steps_max_small) {
+		oil_reset();
+		return;
+	}
+
+	oil_hijack_active = 1;
+	gauge_hijack(0x23, steps);
 }
 
 void oil_reset() {
 	// Return if hijack is inactive
 	if (oil_hijack_active == 0) return;
-
-	can_send(0x6F1, 0x60, 0x03, 0x30, 0x23, 0x00, 0xFF, 0xFF, 0xFF);
+	gauge_reset(0x23);
 	oil_hijack_active = 0;
 }
 
+
+// Hijack a gauge
+void gauge_hijack(int gauge_id, int steps) {
+	uint8_t msb = (steps / 256); // MSB
+	uint8_t lsb = (steps % 256); // LSB
+
+	can_send(0x6F1, 0x60, 0x05, 0x30, gauge_id, 0x06, msb, lsb, 0xFF);
+}
+
+
+// Un-hijack a gauge
+void gauge_reset(unsigned int gauge_id) {
+	// Gauge IDs
+	// 0x20 = Speedometer
+	// 0x21 = Tachometer
+	// 0x22 = Fuel
+	// 0x23 = Oil
+
+	can_send(0x6F1, 0x60, 0x03, 0x30, gauge_id, 0x00, 0xFF, 0xFF, 0xFF);
+}
+
 // Get data
-// 0x0C1C : [IPLAD] Ambient pressure hPA
-// 0x076D : [IPUMG] Boost actual     hPA
+// 0x0C1C : [IPUMG]  Ambient pressure  hPa  x*0.030518
+// 0x076D : [IPLAD]  Boost actual      hPa  x*0.091554
+// 0x01F4 : [SPLAD]  Boost target      hPA  x*0.091554
+// 0x0AF1 : [ITMOT]  Engine temp       C    (x/10)-273.14
 void status_messwertblock_lesen() {
-	can_send(0x6F1, 0x12, 0x06, 0x2C, 0x10, 0x0C, 0x1C, 0x07, 0x6D);
+	// 0 = ambient + boost actual
+	// 1 = coolant + boost target
+	if (data_expected == 0) {
+		data_expected = 1;
+		can_send(0x6F1, 0x12, 0x06, 0x2C, 0x10, 0x01, 0xF4, 0x0A, 0xF1);
+	}
+	else {
+		data_expected = 0;
+		can_send(0x6F1, 0x12, 0x06, 0x2C, 0x10, 0x0C, 0x1C, 0x07, 0x6D);
+	}
 }
 
 
@@ -220,21 +303,34 @@ void setup() {
 
 	// Initialize CAN baudrate 500k
 	while (CAN_OK != CAN.begin(CAN_500KBPS)) {
-		Serial.println("[dieslg8][CAN][INIT] FAIL");
+		Serial.println("[dieslg8][CAN ][INIT] FAIL");
 		delay(1000);
 	}
 
-	Serial.println("[dieslg8][CAN][INIT] OK");
+	Serial.println("[dieslg8][CAN ][INIT] OK");
 }
 
 void loop() {
-	boolean print_msg = 1;
-
 	unsigned char len = 0;
 	unsigned char buf[8];
 
+	loop_count_01++;
+	loop_count_02++;
+
+	if (loop_count_01 == 2000) {
+		loop_count_01 = 0;
+		if (ignition_run == 1) status_messwertblock_lesen();
+	}
+
+	if (loop_count_02 == 10000000) {
+		loop_count_02 = 0;
+		if (ignition_run == 1) code_clear();
+	}
+
 	// Check if incoming data is available
 	if (CAN_MSGAVAIL == CAN.checkReceive()) {
+		boolean print_msg = 1;
+
 		// Read CAN message data
 		// len : data length
 		// buf : data buffer
@@ -246,16 +342,16 @@ void loop() {
 			case 0x130 : // Ignition status
 				print_msg = 0;
 
-				// Serial.println("[dieslg8][CAN][PARS] Ignition status received");
+				// Serial.println("[dieslg8][CAN ][PARS] Ignition status received");
 
 				// Test if all bits in mask_ignition_sta are present in buf[0]
 				if ((buf[0] & mask_ignition_sta) == mask_ignition_sta) {
 					if (ignition_sta != 1) {
-						Serial.println("[dieslg8][IGN][STA ] Active");
+						Serial.println("[dieslg8][IGN ][STA ] Active");
 					}
 
 					if (ignition_run != 1) {
-						Serial.println("[dieslg8][IGN][RUN ] Active");
+						Serial.println("[dieslg8][IGN ][RUN ] Active");
 						gauge_sweep();
 						code_clear();
 					}
@@ -270,7 +366,7 @@ void loop() {
 				// Test if all bits in mask_ignition_run are present in buf[0]
 				if ((buf[0] & mask_ignition_run) == mask_ignition_run) {
 					if (ignition_run != 1) {
-						Serial.println("[dieslg8][IGN][RUN ] Active");
+						Serial.println("[dieslg8][IGN ][RUN ] Active");
 						gauge_sweep();
 						code_clear();
 					}
@@ -285,7 +381,7 @@ void loop() {
 				// Test if all bits in mask_ignition_acc are present in buf[0]
 				if ((buf[0] & mask_ignition_acc) == mask_ignition_acc) {
 					if (ignition_acc != 1) {
-						Serial.println("[dieslg8][IGN][ACC ] Active");
+						Serial.println("[dieslg8][IGN ][ACC ] Active");
 						fuel_reset();
 						oil_reset();
 					}
@@ -299,10 +395,12 @@ void loop() {
 
 				// By this point, ignition must be off
 				if (ignition_off != 1) {
-					Serial.println("[dieslg8][IGN][OFF ] Active");
+					Serial.println("[dieslg8][IGN ][OFF ] Active");
 					fuel_reset();
 					oil_reset();
 				}
+
+				temp_flashed = 0;
 
 				ignition_off = 1;
 				ignition_acc = 0;
@@ -314,57 +412,58 @@ void loop() {
 			case 0x612 : // Response to STATUS_MESSWERTE_BLOCK request
 				print_msg = 0;
 
-				unsigned int ambient = (buf[4] << 8) | buf[5];
-				unsigned int boost   = (buf[6] << 8) | buf[7];
+				// Serial.print("[dieslg8][DATA][EXP ] "); Serial.println(data_expected);
 
-				ambient_hpa = ambient * 0.030518;
-				boost_hpa   = ((boost  * 0.091554) - 5) - ambient_hpa;
-				boost_psi   = boost_hpa / 68.947572932;
+				// TODO: Why the f**k doesnt the case statement work here
+				if (data_expected == 1) { // coolant + boost target
+					unsigned int boost_target = (buf[4] << 8) | buf[5];
+					unsigned int coolant_temp = (buf[6] << 8) | buf[7];
 
-				// Serial.print("[dieslg8][BST][PSI] ");
-				// Serial.println(boost_psi);
+					boost_hpa_target = (boost_target * 0.091554) - ambient_hpa;
+					boost_psi_target = boost_hpa_target / hpa2psi;
 
-				fuel_hijack();
+					coolant_temp_c = (coolant_temp / 10) - 273.14;
+
+					if (coolant_temp_c > 80) temp_flash();
+
+					// Serial.print("[dieslg8][DATA][BSTT] "); Serial.println(boost_psi_target);
+					// Serial.print("[dieslg8][DATA][CLT1] "); Serial.println(coolant_temp_c);
+
+					oil_hijack_boost();
+				}
+				else { // ambient + boost actual
+					unsigned int ambient      = (buf[4] << 8) | buf[5];
+					unsigned int boost_actual = (buf[6] << 8) | buf[7];
+
+					ambient_hpa      = ambient       * 0.030518;
+					boost_hpa_actual = (boost_actual * 0.091554) - ambient_hpa;
+					boost_psi_actual = boost_hpa_actual / hpa2psi;
+
+					// Serial.print("[dieslg8][DATA][AMBP] "); Serial.println(ambient_hpa);
+					// Serial.print("[dieslg8][DATA][BSTA] "); Serial.println(boost_psi_actual);
+
+					fuel_hijack_boost();
+				}
 
 				break;
 
 			case 0x660 : // ACK to DIA message
 				print_msg = 0;
-				break;
 		}
 
-		// Serial.print("[dieslg8][IGN][STAT] Off/Acc/Run/Sta ");
-		// Serial.print(ignition_off);
-		// Serial.print(ignition_acc);
-		// Serial.print(ignition_run);
-		// Serial.print(ignition_sta);
-		// Serial.println();
+		if (print_msg == 1) {
+			// Serial.println("----------------------------------------");
+			Serial.print("[dieslg8][CAN ][RECV] 0x");
+			Serial.print(arbid, HEX);
+			Serial.print(" => ");
 
+			// Print the data
+			for (int i = 0; i < len; i++) {
+				Serial.print(buf[i], HEX);
+				Serial.print(" ");
+			}
 
-		if (print_msg == 0) return;
-
-		// Serial.println("----------------------------------------");
-		Serial.print("[dieslg8][CAN][RECV] 0x");
-		Serial.print(arbid, HEX);
-		Serial.print(" => ");
-
-		// Print the data
-		for (int i = 0; i < len; i++) {
-			Serial.print(buf[i], HEX);
-			Serial.print(" ");
-		}
-
-		Serial.println();
-	}
-
-	loop_count++;
-
-	if (loop_count == 750) {
-		loop_count = 0;
-
-		// Serial.println("[dieslg8][LOOP]");
-		if (ignition_run == 1) {
-			status_messwertblock_lesen();
+			Serial.println();
 		}
 	}
 }
