@@ -46,11 +46,11 @@ Glow plugs | `4A2E` | Glow plug activation, cylinder 5
 ## Fuel gauge hijack
 Boost PSI | Fuel gauge %
 --------- | ------------
-15 psi | 0%
-20 psi | 25%
-25 psi | 50%
+0 psi | 0%
+10 psi | 25%
+20 psi | 50%
 30 psi | 75%
-35 psi | 100%
+40 psi | 100%
 
 ## Reference material(s)
 * BMW Tool32
