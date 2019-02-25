@@ -467,3 +467,6 @@ void loop() {
 		}
 	}
 }
+
+
+/* vim: set syntax=c filetype=c ts=2 sw=2 tw=0 et :*/
