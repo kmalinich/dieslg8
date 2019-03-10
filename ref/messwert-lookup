@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+
+FILE_MESS="./D73N57C0-MESSWERT.csv"
+
+{
+	head -n 1 "${FILE_MESS}"
+	grep -E "^${1}" "${FILE_MESS}" | sort -f
+} | tty-table
+

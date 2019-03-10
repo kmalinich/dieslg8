@@ -15,8 +15,9 @@ const int mask_ignition_sta = 0xD5; // buf[0]
 unsigned long loop_count_01 = 0;
 unsigned long loop_count_02 = 0;
 
-// 0 = ambient + boost actual
-// 1 = coolant + boost target
+// 0 = Ambient        + Boost actual
+// 1 = Coolant temp   + Boost target
+// 2 = Pedal position + Engine RPM
 unsigned int data_expected = 0;
 
 // Step limits for gauges
@@ -25,7 +26,7 @@ const int steps_max_small = 1800; // Small gauges (fuel %, oil)
 
 // Unit limits for gauges
 const int boost_psi_max = 40;
-const int coolant_c_max = 100;
+const int coolant_c_max = 150;
 
 // 1 psi = 68.9475729318 hPa
 // 1 hPA = 0.0145037738 psi
@@ -34,13 +35,15 @@ const float psi2hpa = 0.0145037738;
 
 
 unsigned int ambient_hpa;
+unsigned int engine_rpm;
 unsigned int boost_hpa_actual;
 unsigned int boost_hpa_target;
 
 float boost_psi_actual;
 float boost_psi_target;
-
 float coolant_temp_c;
+float throttle_percent;
+
 
 bool temp_flashed = 0;
 
@@ -191,8 +194,8 @@ void gauge_sweep() {
 
 void fuel_hijack_boost() {
 	// Return if less than 10 hPa
-	if (boost_hpa_actual < 10) {
-		// fuel_reset();
+	if (boost_hpa_actual < 10 || throttle_percent < 49) {
+		fuel_reset();
 		return;
 	}
 
@@ -222,7 +225,7 @@ void fuel_reset() {
 void oil_hijack_boost() {
 	// Return if less than 10 hPa
 	if (boost_hpa_target < 10) {
-		// oil_reset();
+		oil_reset();
 		return;
 	}
 
@@ -232,8 +235,7 @@ void oil_hijack_boost() {
 
 void oil_hijack_coolant() {
 	// Return if less than 10 hPa
-	if (coolant_temp_c < 0) {
-		oil_reset();
+	if (coolant_temp_c < 0 || coolant_temp_c > coolant_c_max) {
 		return;
 	}
 
@@ -281,19 +283,38 @@ void gauge_reset(unsigned int gauge_id) {
 }
 
 // Get data
-// 0x0C1C : [IPUMG]  Ambient pressure  hPa  x*0.030518
-// 0x076D : [IPLAD]  Boost actual      hPa  x*0.091554
-// 0x01F4 : [SPLAD]  Boost target      hPA  x*0.091554
-// 0x0AF1 : [ITMOT]  Engine temp       C    (x/10)-273.14
+// 0x01, 0xF4 : [SPLAD]  Boost, target              hPA  x*0.091554
+// 0x07, 0x6D : [IPLAD]  Boost, actual              hPa  x*0.091554
+// 0x05, 0x47 : [ITKUM]  Coolant temp               C    (x/100)-100
+// 0x0C, 0x1C : [IPUMG]  Ambient pressure           hPa  x*0.030518
+// 0x01, 0x62 : [IFPWG]  Pedal position (filtered)  %    x*0.012207
+// 0x18, 0x81 : [INMOT]  Engine RPM, actual         %    x*0.5
+//
+// 0x05, 0x79 : [SMIBA]  Limiter, internal torque   Nm   (x/10)
+// 0x05, 0x7B : [IMBEG]  Setpoint, internal torque  Nm   (x*0.114443)-2500
+// 0x07, 0xD1 : [IMOAK]  Torque, actual             Nm   (x*0.114443)-2500
+//
+// 0x0F, 0xD2 : [ITUMG]  Ambient temp                       C  (x/10)-273.14
+// 0x07, 0x6F : [ITLAL]  Intake air temp, post intercooler  C  (x/100)-100
+// 0x0A, 0xF1 : [ITMOT]  Engine temp                        C  (x/10)-273.14
+// 0x0A, 0x8C : [ITOEL]  Oil temp                           C  (x/100)-100
 void status_messwertblock_lesen() {
-	// 0 = ambient + boost actual
-	// 1 = coolant + boost target
+	// 0 = Ambient        + Boost actual
+	// 1 = Coolant temp   + Boost target
+	// 2 = Pedal position + Engine RPM
 	if (data_expected == 0) {
 		data_expected = 1;
-		can_send(0x6F1, 0x12, 0x06, 0x2C, 0x10, 0x01, 0xF4, 0x0A, 0xF1);
+		// SPLAD + ITKUM
+		can_send(0x6F1, 0x12, 0x06, 0x2C, 0x10, 0x01, 0xF4, 0x05, 0x47);
 	}
-	else {
+	else if (data_expected == 1) {
+		data_expected = 2;
+		// IFPWG + INMOT
+		can_send(0x6F1, 0x12, 0x06, 0x2C, 0x10, 0x01, 0x62, 0x18, 0x81);
+	}
+	else if (data_expected == 2) {
 		data_expected = 0;
+		// IPUMG + IPLAD
 		can_send(0x6F1, 0x12, 0x06, 0x2C, 0x10, 0x0C, 0x1C, 0x07, 0x6D);
 	}
 }
@@ -306,9 +327,16 @@ void sdcard_log() {
 	log_file.print(ignition_acc);     log_file.print(",");
 	log_file.print(ignition_run);     log_file.print(",");
 	log_file.print(ignition_sta);     log_file.print(",");
+	log_file.print(engine_rpm);       log_file.print(",");
+	log_file.print(throttle_percent); log_file.print(",");
 	log_file.print(coolant_temp_c);   log_file.print(",");
 	log_file.print(boost_psi_target); log_file.print(",");
+
 	log_file.println(boost_psi_actual);
+
+	log_file.close();
+
+	Serial.println("[dieslg8][SD  ][WRIT] Wrote line");
 }
 
 
@@ -333,7 +361,7 @@ void setup() {
 		while(1);
 	}
 
-	Serial.println("[dieslg8][SD ][INIT] OK");
+	Serial.println("[dieslg8][SD  ][INIT] OK");
 }
 
 void loop() {
@@ -343,7 +371,7 @@ void loop() {
 	loop_count_01++;
 	loop_count_02++;
 
-	if (loop_count_01 == 2000) {
+	if (loop_count_01 == 1900) {
 		loop_count_01 = 0;
 		if (ignition_run == 1) status_messwertblock_lesen();
 	}
@@ -438,35 +466,46 @@ void loop() {
 			case 0x612 : // Response to STATUS_MESSWERTE_BLOCK request
 				print_msg = 0;
 
-				// Serial.print("[dieslg8][DATA][EXP ] "); Serial.println(data_expected);
-
 				// TODO: Why the f**k doesnt the case statement work here
-				if (data_expected == 1) { // coolant + boost target
-					unsigned int boost_target = (buf[4] << 8) | buf[5];
-					unsigned int coolant_temp = (buf[6] << 8) | buf[7];
+				if (data_expected == 0) { // 0 = Ambient + Boost actual
+					unsigned int value_01 = (buf[4] << 8) | buf[5];
+					unsigned int value_02 = (buf[6] << 8) | buf[7];
 
-					boost_hpa_target = (boost_target * 0.091554) - ambient_hpa;
+					ambient_hpa      = value_02 * 0.030518;
+					boost_hpa_actual = (value_02 * 0.091554) - ambient_hpa;
+					boost_psi_actual = boost_hpa_actual / hpa2psi;
+
+					// Serial.print("[dieslg8][DATA][AMBh] "); Serial.println(ambient_hpa);
+					// Serial.print("[dieslg8][DATA][BSTa] "); Serial.println(boost_psi_actual);
+
+					fuel_hijack_boost();
+				}
+				else if (data_expected == 1) { // 1 = Coolant temp + Boost target
+					unsigned int value_01 = (buf[4] << 8) | buf[5];
+					unsigned int value_02 = (buf[6] << 8) | buf[7];
+
+					boost_hpa_target = (value_01 * 0.091554) - ambient_hpa;
 					boost_psi_target = boost_hpa_target / hpa2psi;
 
-					coolant_temp_c = (coolant_temp / 10) - 273.14;
+					coolant_temp_c = (value_02 * 0.01) - 100;
 
 					if (coolant_temp_c > 75) temp_flash();
 
-					// Serial.print("[dieslg8][DATA][BSTT] "); Serial.println(boost_psi_target);
-					// Serial.print("[dieslg8][DATA][CLT1] "); Serial.println(coolant_temp_c);
+					// Serial.print("[dieslg8][DATA][BSTt] "); Serial.println(boost_psi_target);
+					// Serial.print("[dieslg8][DATA][CLTc] "); Serial.println(coolant_temp_c);
 
-					oil_hijack_boost();
+					// oil_hijack_boost();
+					oil_hijack_coolant();
 				}
-				else { // ambient + boost actual
-					unsigned int ambient      = (buf[4] << 8) | buf[5];
-					unsigned int boost_actual = (buf[6] << 8) | buf[7];
+				else if (data_expected == 2) { // 2 = Pedal position + Engine RPM
+					unsigned int value_01 = (buf[4] << 8) | buf[5]; // Pedal
+					unsigned int value_02 = (buf[6] << 8) | buf[7]; // RPM
 
-					ambient_hpa      = ambient       * 0.030518;
-					boost_hpa_actual = (boost_actual * 0.091554) - ambient_hpa;
-					boost_psi_actual = boost_hpa_actual / hpa2psi;
+					throttle_percent = value_01 * 0.012207;
+					engine_rpm       = value_02 * 0.5;
 
-					// Serial.print("[dieslg8][DATA][AMBP] "); Serial.println(ambient_hpa);
-					// Serial.print("[dieslg8][DATA][BSTA] "); Serial.println(boost_psi_actual);
+					// Serial.print("[dieslg8][DATA][THRT] "); Serial.println(throttle_percent);
+					// Serial.print("[dieslg8][DATA][RPM ] "); Serial.println(engine_rpm);
 
 					fuel_hijack_boost();
 				}
@@ -491,6 +530,8 @@ void loop() {
 
 			Serial.println();
 		}
+
+		sdcard_log();
 	}
 }
 
