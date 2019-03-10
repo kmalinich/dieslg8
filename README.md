@@ -23,8 +23,9 @@ Clear DTCs and hijack gauges with Arduino+CAN
 ## Functions
 * Gauge sweep on startup
   * Sweeps all 4 gauges, not just speedo and tach
-* Clear DTCs on KL30
+* Clear selective DTCs on KL30 (if enabled, by default it is not)
   * Once the parts are replaced on my test mule, I'll be removing the glow plug and MAF related codes (see table below)
+* Clear all DTCs on KL30 (if enabled, by default it is not)
 * Consumption/oil gauge hijack
   * Shows coolant temp on consumption/oil gauge
   * Really not useful on oil-temp-gauge equipped cars
