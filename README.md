@@ -25,9 +25,13 @@ Clear DTCs and hijack gauges with Arduino+CAN
   * Sweeps all 4 gauges, not just speedo and tach
 * Clear DTCs on KL30
   * Once the parts are replaced on my test mule, I'll be removing the glow plug and MAF related codes (see table below)
+* Consumption/oil gauge hijack
+  * Shows coolant temp on consumption/oil gauge
+  * Really not useful on oil-temp-gauge equipped cars
+  * Reference table below
 * Fuel gauge hijack
-  * When making 15psi+ boost (above ambient pressure), the fuel gauge becomes a boost gauge
-	* Reference table below
+  * When throttle is above 49%, the fuel gauge becomes a boost gauge
+  * Reference table below
 
 ## DTCs cleared
 Group | DTC | Description
@@ -44,13 +48,22 @@ Glow plugs | `4A24` | Glow plug activation, cylinder 5
 Glow plugs | `4A2E` | Glow plug activation, cylinder 5
 
 ## Fuel gauge hijack
-Boost PSI | Fuel gauge %
+Boost PSI | Gauge %
 --------- | ------------
 0 psi | 0%
 10 psi | 25%
 20 psi | 50%
 30 psi | 75%
 40 psi | 100%
+
+## Consumption/oil gauge hijack
+Coolant temp C | Gauge %
+--------- | ------------
+0 C | 0%
+37.5 C | 25%
+75 C | 50%
+112.5 C | 75%
+150 C | 100%
 
 ## Reference material(s)
 * BMW Tool32
