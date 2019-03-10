@@ -1,8 +1,12 @@
 #include <mcp_can.h>
+#include <SD.h>
 #include <SPI.h>
 
 
-const int SPI_CS_PIN = 9;
+const int SPI_CS_CAN = 9;
+const int SPI_CS_SD  = 4;
+
+File log_file;
 
 const int mask_ignition_acc = 0xC1; // buf[0]
 const int mask_ignition_run = 0xC5; // buf[0]
@@ -38,21 +42,22 @@ float boost_psi_target;
 
 float coolant_temp_c;
 
-boolean temp_flashed = 0;
+bool temp_flashed = 0;
 
-boolean fuel_hijack_active = 0;
-boolean oil_hijack_active  = 0;
+bool fuel_hijack_active = 0;
+bool oil_hijack_active  = 0;
 
-boolean ignition_off = 1;
-boolean ignition_acc = 0;
-boolean ignition_run = 0;
-boolean ignition_sta = 0;
+bool ignition_off = 1;
+bool ignition_acc = 0;
+bool ignition_run = 0;
+bool ignition_sta = 0;
 
-boolean sweep_done = 0;
+bool sweep_done = 0;
 
 
-// Set CS pin
-MCP_CAN CAN(SPI_CS_PIN);
+// Set CS pins
+MCP_CAN CAN(SPI_CS_CAN);
+
 
 
 // Send CAN message
@@ -187,7 +192,7 @@ void gauge_sweep() {
 void fuel_hijack_boost() {
 	// Return if less than 10 hPa
 	if (boost_hpa_actual < 10) {
-		fuel_reset();
+		// fuel_reset();
 		return;
 	}
 
@@ -197,7 +202,7 @@ void fuel_hijack_boost() {
 
 void fuel_hijack(unsigned int steps) {
 	// Return if steps are out of bounds
-	if (steps < 0 || steps > steps_max_small) {
+	if (steps > steps_max_small) {
 		fuel_reset();
 		return;
 	}
@@ -217,7 +222,7 @@ void fuel_reset() {
 void oil_hijack_boost() {
 	// Return if less than 10 hPa
 	if (boost_hpa_target < 10) {
-		oil_reset();
+		// oil_reset();
 		return;
 	}
 
@@ -238,7 +243,7 @@ void oil_hijack_coolant() {
 
 void oil_hijack(unsigned int steps) {
 	// Return if steps are out of bounds
-	if (steps < 0 || steps > steps_max_small) {
+	if (steps > steps_max_small) {
 		oil_reset();
 		return;
 	}
@@ -294,20 +299,41 @@ void status_messwertblock_lesen() {
 }
 
 
+void sdcard_log() {
+	log_file = SD.open("logfile.csv", FILE_WRITE);
+
+	log_file.print(ignition_off);     log_file.print(",");
+	log_file.print(ignition_acc);     log_file.print(",");
+	log_file.print(ignition_run);     log_file.print(",");
+	log_file.print(ignition_sta);     log_file.print(",");
+	log_file.print(coolant_temp_c);   log_file.print(",");
+	log_file.print(boost_psi_target); log_file.print(",");
+	log_file.println(boost_psi_actual);
+}
+
+
 void setup() {
 	// Initialize digital pin LED_BUILTIN as an output
-	pinMode(LED_BUILTIN, OUTPUT);
+	// pinMode(LED_BUILTIN, OUTPUT);
 
 	// Initialize serial output for logging
 	Serial.begin(115200);
 
-	// Initialize CAN baudrate 500k
+	// Init CAN, baudrate 500k
 	while (CAN_OK != CAN.begin(CAN_500KBPS)) {
 		Serial.println("[dieslg8][CAN ][INIT] FAIL");
 		delay(1000);
 	}
 
 	Serial.println("[dieslg8][CAN ][INIT] OK");
+
+	// Init SD card
+	if (!SD.begin(SPI_CS_SD)) {
+		Serial.println("[dieslg8][SD  ][INIT] FAIL");
+		while(1);
+	}
+
+	Serial.println("[dieslg8][SD ][INIT] OK");
 }
 
 void loop() {
@@ -324,12 +350,12 @@ void loop() {
 
 	if (loop_count_02 == 10000000) {
 		loop_count_02 = 0;
-		if (ignition_run == 1) code_clear();
+		// if (ignition_run == 1) code_clear();
 	}
 
 	// Check if incoming data is available
 	if (CAN_MSGAVAIL == CAN.checkReceive()) {
-		boolean print_msg = 1;
+		bool print_msg = 1;
 
 		// Read CAN message data
 		// len : data length
@@ -353,7 +379,7 @@ void loop() {
 					if (ignition_run != 1) {
 						Serial.println("[dieslg8][IGN ][RUN ] Active");
 						gauge_sweep();
-						code_clear();
+						// code_clear();
 					}
 
 					ignition_off = 0;
@@ -368,7 +394,7 @@ void loop() {
 					if (ignition_run != 1) {
 						Serial.println("[dieslg8][IGN ][RUN ] Active");
 						gauge_sweep();
-						code_clear();
+						// code_clear();
 					}
 
 					ignition_off = 0;
@@ -424,7 +450,7 @@ void loop() {
 
 					coolant_temp_c = (coolant_temp / 10) - 273.14;
 
-					if (coolant_temp_c > 80) temp_flash();
+					if (coolant_temp_c > 75) temp_flash();
 
 					// Serial.print("[dieslg8][DATA][BSTT] "); Serial.println(boost_psi_target);
 					// Serial.print("[dieslg8][DATA][CLT1] "); Serial.println(coolant_temp_c);
@@ -469,4 +495,4 @@ void loop() {
 }
 
 
-/* vim: set syntax=c filetype=c ts=2 sw=2 tw=0 et :*/
+/* vim: set syntax=cpp filetype=cpp ts=2 sw=2 tw=0 et :*/
