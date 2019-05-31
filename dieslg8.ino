@@ -171,6 +171,21 @@ void turn_reset() {
 }
 
 
+// Illuminate active cruise LED(s) in the cluster
+// led_mask_1:
+// 0x01 : 
+// 0x02 : 
+// 0x03 : 
+void acc_set() {
+	can_send(0x6F1, 0x60, 0x03, 0x70, 0x27, 0x6A, 0x00, 0x00, 0x00);
+}
+
+// Reset active cruise LED(s) in the cluster
+void acc_reset() {
+	can_send(0x6F1, 0x60, 0x03, 0x70, 0x2B, 0x6E, 0x00, 0x00, 0x00);
+}
+
+
 void gauge_sweep() {
 	Serial.println("[dieslg8][CAN ][FUNC] Performing gauge sweep");
 
