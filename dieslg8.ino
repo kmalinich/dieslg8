@@ -1,6 +1,12 @@
 #include <mcp_can.h>
-#include <SD.h>
 #include <SPI.h>
+
+#include <SD.h>
+
+#include <NMEAGPS.h>
+#include <GPSport.h>
+#include <Streamers.h>
+
 
 
 // Config: unit limits for gauges
@@ -80,21 +86,29 @@ bool ignition_sta = 0;
 bool sweep_done = 0;
 
 
+
 // SPI pin config
 const int SPI_CS_CAN = 9;
 const int SPI_CS_SD  = 4;
 
-// Set CS pins
+// Declare CAN handle
 MCP_CAN CAN(SPI_CS_CAN);
 
 // Declare File handle for logging
 File log_file;
+
+// Declare GPS handle
+NMEAGPS gps;
+gps_fix currentFix;
+
 
 
 
 
 // Send CAN message
 void can_send(short address, byte a, byte b, byte c, byte d, byte e, byte f, byte g, byte h) {
+	digitalWrite(LED_BUILTIN, LOW);
+
 	// Serial.print("[dieslg8][CAN ][SEND] 0x");
 	// Serial.print(address, HEX);
 	// Serial.print(" => ");
@@ -112,6 +126,8 @@ void can_send(short address, byte a, byte b, byte c, byte d, byte e, byte f, byt
 
 	delay(25);
 	CAN.sendMsgBuf(address, 0, 8, DataToSend);
+
+	LED_GPS_status();
 }
 
 // Clears these codes:
@@ -436,12 +452,22 @@ void sdcard_log() {
 }
 
 
+void LED_GPS_status() {
+	if (currentFix.valid.altitude && currentFix.valid.location && currentFix.valid.speed) {
+		digitalWrite(LED_BUILTIN, HIGH);
+	}
+}
+
 void setup() {
 	// Initialize digital pin LED_BUILTIN as an output
-	// pinMode(LED_BUILTIN, OUTPUT);
+	pinMode(LED_BUILTIN, OUTPUT);
+	digitalWrite(LED_BUILTIN, LOW);
 
 	// Initialize serial output for logging
 	Serial.begin(115200);
+
+	// Wait for serial port to come up before proceeding
+	// while (!Serial) ;
 
 	// Init CAN, baudrate 500k
 	while (CAN.begin(CAN_500KBPS) != CAN_OK) {
@@ -460,12 +486,13 @@ void setup() {
 
 		Serial.println("[dieslg8][INIT][SD  ] OK");
 	}
+
+	gpsPort.begin(9600);
+
+	Serial.println("[dieslg8][INIT][MAIN] Ready");
 }
 
 void loop() {
-	unsigned char len = 0;
-	unsigned char buf[8];
-
 	// Increment loop counters
 	loop_count_01++;
 	loop_count_02++;
@@ -480,6 +507,42 @@ void loop() {
 		loop_count_02 = 0;
 	}
 
+	while (gps.available(gpsPort)) {
+		currentFix = gps.read();
+
+		Serial.print("[dieslg8][GPS ][STAT] ");
+		Serial.print(gps.sat_count);
+		Serial.print(" sats");
+
+		if (currentFix.valid.location) {
+			Serial.print(", Loc: ");
+			Serial.print(currentFix.latitude(), 6);
+			Serial.print(',');
+			Serial.print(currentFix.longitude(), 6);
+		}
+
+		if (currentFix.valid.altitude) {
+			Serial.print(", Alt: ");
+			Serial.print(currentFix.altitude_ft());
+			Serial.print(" ft");
+		}
+
+		if (currentFix.valid.speed) {
+			Serial.print(" :: ");
+			Serial.print(currentFix.speed_mph());
+			Serial.print(" mph");
+		}
+
+		LED_GPS_status();
+
+		// date
+		// time
+		// heading
+
+		Serial.println();
+	}
+
+
 	// Check if incoming data is available
 	if (CAN_MSGAVAIL == CAN.checkReceive()) {
 		bool print_msg = 1;
@@ -487,6 +550,9 @@ void loop() {
 		// Read CAN message data
 		// len : data length
 		// buf : data buffer
+		unsigned char len = 0;
+		unsigned char buf[8];
+
 		CAN.readMsgBuf(&len, buf);
 
 		unsigned long arbid = CAN.getCanId();
@@ -631,4 +697,4 @@ void loop() {
 }
 
 
-/* vim: set syntax=cpp filetype=cpp ts=2 sw=2 tw=0 et :*/
+// vim: set syntax=cpp filetype=cpp ts=2 sw=2 tw=0 et :
