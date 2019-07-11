@@ -1,8 +1,6 @@
 #include <mcp_can.h>
 #include <SPI.h>
-
 #include <SD.h>
-
 #include <NMEAGPS.h>
 #include <GPSport.h>
 #include <Streamers.h>
@@ -12,8 +10,9 @@
 #define DBG true
 
 // Debug macro to print messages to serial
-#define DEBUG(x)   if(DBG && Serial) { DEBUG   (x); }
-#define DEBUGLN(x) if(DBG && Serial) { DEBUGLN (x); }
+#define DEBUG(x)     if (DBG && Serial) { Serial.print(x);    }
+#define DEBUGLN(x)   if (DBG && Serial) { Serial.println(x);  }
+#define DEBUG2(x, y) if (DBG && Serial) { Serial.print(x, y); }
 
 
 // Config: unit limits for gauges
@@ -555,11 +554,11 @@ void sdcard_log_gps() {
 
 	log_file_gps.print(",");
 
-	log_file_gps.print(current_fix.heading());      log_file_gps.print(",");
-	log_file_gps.print(current_fix.latitude(), 6);  log_file_gps.print(",");
-	log_file_gps.print(current_fix.longitude(), 6); log_file_gps.print(",");
-	log_file_gps.print(current_fix.altitude_ft());  log_file_gps.print(",");
-	log_file_gps.print(current_fix.speed_mph());    log_file_gps.print(",");
+	log_file_gps.print(current_fix.heading());     log_file_gps.print(",");
+	log_file_gps.print(current_fix.latitude());    log_file_gps.print(",");
+	log_file_gps.print(current_fix.longitude());   log_file_gps.print(",");
+	log_file_gps.print(current_fix.altitude_ft()); log_file_gps.print(",");
+	log_file_gps.print(current_fix.speed_mph());   log_file_gps.print(",");
 
 	log_file_gps.println("");
 
@@ -578,13 +577,12 @@ void LED_GPS_status() {
 void setup() {
 	// Initialize digital pin LED_BUILTIN as an output
 	pinMode(LED_BUILTIN, OUTPUT);
-	digitalWrite(LED_BUILTIN, LOW);
+	digitalWrite(LED_BUILTIN, HIGH);
 
 	// Wait for serial connection when debugging
 	if (DBG) {
 		// Initialize serial output for logging
 		Serial.begin(115200);
-
 		while (!Serial) ;
 	}
 
@@ -609,6 +607,7 @@ void setup() {
 	gpsPort.begin(9600);
 
 	DEBUGLN("[dieslg8][INIT][MAIN] Ready");
+	digitalWrite(LED_BUILTIN, LOW);
 }
 
 void loop() {
@@ -635,9 +634,9 @@ void loop() {
 
 		if (current_fix.valid.location) {
 			DEBUG(", Loc: ");
-			DEBUG(current_fix.latitude(), 6);
+			DEBUG(current_fix.latitude());
 			DEBUG(",");
-			DEBUG(current_fix.longitude(), 6);
+			DEBUG(current_fix.longitude());
 		}
 
 		if (current_fix.valid.altitude) {
@@ -837,12 +836,12 @@ void loop() {
 		if (print_msg == 1) {
 			// DEBUGLN("----------------------------------------");
 			DEBUG("[dieslg8][CAN ][RECV] 0x");
-			DEBUG(arbid, HEX);
+			DEBUG2(arbid, HEX);
 			DEBUG(" => ");
 
 			// Print the data
 			for (int i = 0; i < len; i++) {
-				DEBUG(buf[i], HEX);
+				DEBUG2(buf[i], HEX);
 				DEBUG(" ");
 			}
 
