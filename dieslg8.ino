@@ -494,14 +494,6 @@ void status_messwertblock_lesen() {
 
 #ifdef logging_gps_enable
 void sdcard_log_gps() {
-	// Return if data not available
-	if (!current_fix.valid.altitude) return;
-	if (!current_fix.valid.date)     return;
-	if (!current_fix.valid.heading)  return;
-	if (!current_fix.valid.location) return;
-	if (!current_fix.valid.speed)    return;
-	if (!current_fix.valid.time)     return;
-
 	// Toggle LED
 	digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
 
@@ -546,7 +538,9 @@ void sdcard_log_gps() {
 
 	log_file_gps.close();
 
-	// DEBUGLN("[dieslg8][SD  ][FUNC][WRIT][GPS ] Done");
+	// DEBUG("\n[dieslg8][SD  ][FUNC][WRIT][GPS ] Done");
+
+	delay(10);
 
 	// Toggle LED
 	digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
@@ -573,10 +567,10 @@ void sdcard_log_perf() {
 
 	log_file_perf.close();
 
-	// DEBUGLN("[dieslg8][SD  ][FUNC][WRIT][PERF] Done");
+	DEBUGLN("[dieslg8][SD  ][FUNC][WRIT][PERF] Done");
 
-	// Toggle LED
-	digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
+	// Toggle LED back
+	LED_GPS_status();
 }
 #endif
 
@@ -638,9 +632,7 @@ void setup() {
 }
 
 void loop() {
-	// Request status data every now and again
-	// if (ignition_run == 1) status_messwertblock_lesen();
-
+#ifdef gps_enable
 	while (gps.available(Serial1)) {
 		current_fix = gps.read();
 
@@ -703,15 +695,21 @@ void loop() {
 
 			if (current_fix.dateTime_cs < 10) DEBUG("0");
 			DEBUG(current_fix.dateTime_cs);
+
+#ifdef logging_gps_enable
+			sdcard_log_gps();
+#endif
 		}
 
 		LED_GPS_status();
 
 		DEBUGLN();
-
-		sdcard_log_gps();
 	}
+#endif
 
+
+	// Request status data every now and again
+	// if (ignition_run == 1) status_messwertblock_lesen();
 
 	// Check if incoming data is available
 	if (CAN_MSGAVAIL == CAN.checkReceive()) {
