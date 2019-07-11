@@ -494,6 +494,14 @@ void status_messwertblock_lesen() {
 
 #ifdef logging_gps_enable
 void sdcard_log_gps() {
+	// Return if data not available
+	if (!current_fix.valid.altitude) return;
+	if (!current_fix.valid.date)     return;
+	if (!current_fix.valid.heading)  return;
+	if (!current_fix.valid.location) return;
+	if (!current_fix.valid.speed)    return;
+	if (!current_fix.valid.time)     return;
+
 	// Toggle LED
 	digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
 
@@ -664,7 +672,7 @@ void loop() {
 			DEBUG(current_fix.heading());
 		}
 
-		if (current_fix.valid.time && current_fix.valid.date) {
+		if (current_fix.valid.date && current_fix.valid.time) {
 			// Timezone/DST calculation
 			adjustTime(current_fix.dateTime);
 
@@ -869,8 +877,6 @@ void loop() {
 			DEBUGLN();
 		}
 	}
-
-	delay(250);
 }
 
 
