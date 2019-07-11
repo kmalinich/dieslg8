@@ -2,8 +2,7 @@
 #include <SPI.h>
 #include <SD.h>
 #include <NMEAGPS.h>
-#include <GPSport.h>
-#include <Streamers.h>
+
 
 
 // Debug mode
@@ -592,12 +591,13 @@ void setup() {
 		// Initialize serial output for logging
 		Serial.begin(115200);
 		while (!Serial) ;
+		delay(1000);
 	}
 
 	// Init CAN, baudrate 500k
 	while (CAN.begin(CAN_500KBPS) != CAN_OK) {
 		DEBUGLN("[dieslg8][INIT][CAN ] Waiting");
-		delay(100);
+		delay(1000);
 	}
 
 	DEBUGLN("[dieslg8][INIT][CAN ] OK");
@@ -607,7 +607,7 @@ void setup() {
 #if defined (logging_gps_enable) || defined (logging_perf_enable)
 	if (!SD.begin(SPI_CS_SD)) {
 		DEBUGLN("[dieslg8][INIT][SD  ] Waiting");
-		delay(100);
+		delay(1000);
 	}
 #endif
 
@@ -615,10 +615,10 @@ void setup() {
 
 #ifdef gps_enable
 	Serial1.begin(9600);
-	while (!gps.available(Serial1)) {
-		DEBUGLN("[dieslg8][INIT][GPS ] Waiting");
-		delay(100);
-	}
+	// while (!gps.available(Serial1)) {
+	//   DEBUGLN("[dieslg8][INIT][GPS ] Waiting");
+	//   delay(1000);
+	// }
 
 	DEBUGLN("[dieslg8][INIT][GPS ] OK");
 #endif
@@ -632,79 +632,81 @@ void loop() {
 	// Request status data every now and again
 	// if (ignition_run == 1) status_messwertblock_lesen();
 
-	current_fix = gps.read();
+	while (gps.available(Serial1)) {
+		current_fix = gps.read();
 
-	// Wait here a little bit if we don't have a GPS signal
-	if (gps.sat_count < 3) {
-		delay(3000);
+		// Wait here a little bit if we don't have a GPS signal
+		if (gps.sat_count < 3) {
+			delay(3000);
+		}
+
+		DEBUG("[dieslg8][GPS ][STAT] ");
+		DEBUG(gps.sat_count);
+		DEBUG(" sats");
+
+		if (current_fix.valid.location) {
+			DEBUG(", Loc: ");
+			DEBUG(current_fix.latitude());
+			DEBUG(",");
+			DEBUG(current_fix.longitude());
+		}
+
+		if (current_fix.valid.altitude) {
+			DEBUG(", Alt: ");
+			DEBUG(current_fix.altitude_ft());
+			DEBUG(" ft");
+		}
+
+		if (current_fix.valid.speed) {
+			DEBUG(", Speed: ");
+			DEBUG(current_fix.speed_mph());
+			DEBUG(" mph");
+		}
+
+		if (current_fix.valid.heading) {
+			DEBUG(", Heading: ");
+			DEBUG(current_fix.heading());
+		}
+
+		if (current_fix.valid.time && current_fix.valid.date) {
+			// Timezone/DST calculation
+			adjustTime(current_fix.dateTime);
+
+			DEBUG(", Date: ");
+			DEBUG("20");
+			DEBUG(current_fix.dateTime.year);
+
+			if (current_fix.dateTime.month < 10) DEBUG("0");
+			DEBUG(current_fix.dateTime.month);
+
+			if (current_fix.dateTime.date < 10) DEBUG("0");
+			DEBUG(current_fix.dateTime.date);
+			DEBUG(", ");
+
+			DEBUG("Time: ");
+
+			if (current_fix.dateTime.hours < 10) DEBUG("0");
+			DEBUG(current_fix.dateTime.hours);
+			DEBUG(":");
+
+			if (current_fix.dateTime.minutes < 10) DEBUG("0");
+			DEBUG(current_fix.dateTime.minutes);
+			DEBUG(":");
+
+			if (current_fix.dateTime.seconds < 10) DEBUG("0");
+			DEBUG(current_fix.dateTime.seconds);
+			DEBUG(".");
+
+			if (current_fix.dateTime_cs < 10) DEBUG("0");
+			DEBUG(current_fix.dateTime_cs);
+		}
+
+		LED_GPS_status();
+
+		DEBUGLN();
+
+		sdcard_log_gps();
 	}
-
-	DEBUG("[dieslg8][GPS ][STAT] ");
-	DEBUG(gps.sat_count);
-	DEBUG(" sats");
-
-	if (current_fix.valid.location) {
-		DEBUG(", Loc: ");
-		DEBUG(current_fix.latitude());
-		DEBUG(",");
-		DEBUG(current_fix.longitude());
-	}
-
-	if (current_fix.valid.altitude) {
-		DEBUG(", Alt: ");
-		DEBUG(current_fix.altitude_ft());
-		DEBUG(" ft");
-	}
-
-	if (current_fix.valid.speed) {
-		DEBUG(", Speed: ");
-		DEBUG(current_fix.speed_mph());
-		DEBUG(" mph");
-	}
-
-	if (current_fix.valid.heading) {
-		DEBUG(", Heading: ");
-		DEBUG(current_fix.heading());
-	}
-
-	if (current_fix.valid.time && current_fix.valid.date) {
-		// Timezone/DST calculation
-		adjustTime(current_fix.dateTime);
-
-		DEBUG(", Date: ");
-		DEBUG("20");
-		DEBUG(current_fix.dateTime.year);
-
-		if (current_fix.dateTime.month < 10) DEBUG("0");
-		DEBUG(current_fix.dateTime.month);
-
-		if (current_fix.dateTime.date < 10) DEBUG("0");
-		DEBUG(current_fix.dateTime.date);
-		DEBUG(", ");
-
-		DEBUG("Time: ");
-
-		if (current_fix.dateTime.hours < 10) DEBUG("0");
-		DEBUG(current_fix.dateTime.hours);
-		DEBUG(":");
-
-		if (current_fix.dateTime.minutes < 10) DEBUG("0");
-		DEBUG(current_fix.dateTime.minutes);
-		DEBUG(":");
-
-		if (current_fix.dateTime.seconds < 10) DEBUG("0");
-		DEBUG(current_fix.dateTime.seconds);
-		DEBUG(".");
-
-		if (current_fix.dateTime_cs < 10) DEBUG("0");
-		DEBUG(current_fix.dateTime_cs);
-	}
-
-	LED_GPS_status();
-
-	DEBUGLN();
-
-	sdcard_log_gps();
 
 
 	// Check if incoming data is available
