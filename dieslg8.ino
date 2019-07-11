@@ -523,9 +523,8 @@ void sdcard_log_gps() {
 		log_file_gps.print(current_fix.latitude());    log_file_gps.print(",");
 		log_file_gps.print(current_fix.longitude());   log_file_gps.print(",");
 		log_file_gps.print(current_fix.altitude_ft()); log_file_gps.print(",");
-		log_file_gps.print(current_fix.speed_mph());   log_file_gps.print(",");
 
-		log_file_gps.println("");
+		log_file_gps.println(current_fix.speed_mph());
 
 		log_file_gps.close();
 
