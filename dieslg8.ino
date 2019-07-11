@@ -14,55 +14,51 @@
 #define DEBUGLN(x)   if (DBG && Serial) { Serial.println(x);  }
 #define DEBUG2(x, y) if (DBG && Serial) { Serial.print(x, y); }
 
+// SPI pin config
+#define SPI_CS_CAN 9
+#define SPI_CS_SD  4
+
+
+#define gps_enable 1
 
 // Config: unit limits for gauges
-const int boost_psi_max = 40;
-const int coolant_c_max = 150;
+#define boost_psi_max 40
+#define coolant_c_max 150
 
 // Config: Various value targets
-const int coolant_c_target = 75;
+#define coolant_c_target 75
 
 // Config: disable/enable SD card performance data logging
-bool logging_perf_enable = 0;
+// #define logging_perf_enable 1
 
 // Config: disable/enable SD card GPS logging
-bool logging_gps_enable = 1;
+#define logging_gps_enable 1
 
 // Config: disable/enable automatic code clearing
-bool code_clear_all_enable      = 0;
-bool code_clear_specific_enable = 0;
+#define code_clear_all_enable      0
+#define code_clear_specific_enable 0
 
 // Config: disable/enable turn signal LED flash when coolant temp reaches target
-bool temp_flash_enable = 0;
+// #define temp_flash_enable 0
 
 // Config: disable/enable gauge sweep
-bool gauge_sweep_enable = 1;
+// #define gauge_sweep_enable 1
 
 // Config: disable/enable gauge hijacking
-bool hijack_fuel_boost_enable   = 0;
-bool hijack_fuel_coolant_enable = 0;
-bool hijack_oil_boost_enable    = 0;
-bool hijack_oil_coolant_enable  = 1;
+#define hijack_fuel_boost_enable   0
+#define hijack_fuel_coolant_enable 0
+#define hijack_oil_boost_enable    0
+#define hijack_oil_coolant_enable  1
 
 // Config: step limits for gauges
-const int steps_max_large = 4667; // Large gauges (speedo, tach)
-const int steps_max_small = 1800; // Small gauges (fuel %, oil)
-
+#define steps_max_large 4667 // Large gauges (speedo, tach)
+#define steps_max_small 1800 // Small gauges (fuel %, oil)
 
 // 1 psi = 68.9475729318 hPa
 // 1 hPA = 0.0145037738 psi
-const float hpa2psi = 68.9475729318;
-const float psi2hpa = 0.0145037738;
+#define hpa2psi 68.9475729318
+#define psi2hpa 0.0145037738
 
-// Ignition bitmask values to match against
-const int mask_ignition_acc = 0xC1; // buf[0]
-const int mask_ignition_run = 0xC5; // buf[0]
-const int mask_ignition_sta = 0xD5; // buf[0]
-
-
-// Status variables
-unsigned long loop_count_01 = 0;
-unsigned long loop_count_02 = 0;
 
 // 0 = Ambient        + Boost actual
 // 1 = Coolant temp   + Boost target
@@ -82,7 +78,9 @@ float coolant_temp_c;
 float throttle_percent;
 
 // Boolean status values
+#ifdef temp_flash_enable
 bool temp_flashed = 0;
+#endif
 
 bool hijack_fuel_active = 0;
 bool hijack_oil_active  = 0;
@@ -95,17 +93,18 @@ bool ignition_sta = 0;
 bool sweep_done = 0;
 
 
-
-// SPI pin config
-const int SPI_CS_CAN = 9;
-const int SPI_CS_SD  = 4;
-
 // Declare CAN handle
 MCP_CAN CAN(SPI_CS_CAN);
 
-// Declare File handle for logging
-File log_file_perf;
+// Declare File handles for logging
+#ifdef logging_gps_enable
 File log_file_gps;
+#endif
+
+#ifdef logging_perf_enable
+File log_file_perf;
+#endif
+
 
 // Declare GPS handle
 NMEAGPS gps;
@@ -113,7 +112,6 @@ gps_fix current_fix;
 
 
 // Timezone (Eastern)
-
 static const int32_t          zone_hours   = -5L; // EST
 static const int32_t          zone_minutes =  0L; // usually zero
 static const NeoGPS::clock_t  zone_offset  = zone_hours * NeoGPS::SECONDS_PER_HOUR + zone_minutes * NeoGPS::SECONDS_PER_MINUTE;
@@ -254,10 +252,8 @@ void code_clear_all() {
 	turn_reset();
 }
 
+#ifdef temp_flash_enable
 void temp_flash() {
-	// Return if disabled
-	if (temp_flash_enable == 0) return;
-
 	// Return if already flashed
 	if (temp_flashed == 1) return;
 
@@ -279,6 +275,7 @@ void temp_flash() {
 
 	temp_flashed = 1;
 }
+#endif
 
 // Illuminate turn signal LED(s) in the cluster
 // led_mask:
@@ -317,11 +314,8 @@ void acc_reset() {
 	can_send(0x6F1, 0x60, 0x03, 0x70, 0x2B, 0x6E, 0x00, 0x00, 0x00);
 }
 
-
+#ifdef gauge_sweep_enable
 void gauge_sweep() {
-	// Return if disabled
-	if (gauge_sweep_enable == 0) return;
-
 	DEBUGLN("[dieslg8][CAN ][FUNC][KOMB][SWP ] Performing");
 
 	// Speedo/tach to steps_max_large
@@ -340,6 +334,7 @@ void gauge_sweep() {
 	reset_gauge(0x22);
 	reset_gauge(0x23);
 }
+#endif
 
 
 void hijack_fuel_boost() {
@@ -497,31 +492,10 @@ void status_messwertblock_lesen() {
 }
 
 
-void sdcard_log_perf() {
-	// Return if disabled
-	if (logging_perf_enable == 0) return;
-
-	log_file_perf = SD.open("logfile_perf.csv", FILE_WRITE);
-
-	log_file_perf.print(ignition_off);     log_file_perf.print(",");
-	log_file_perf.print(ignition_acc);     log_file_perf.print(",");
-	log_file_perf.print(ignition_run);     log_file_perf.print(",");
-	log_file_perf.print(ignition_sta);     log_file_perf.print(",");
-	log_file_perf.print(engine_rpm);       log_file_perf.print(",");
-	log_file_perf.print(throttle_percent); log_file_perf.print(",");
-	log_file_perf.print(coolant_temp_c);   log_file_perf.print(",");
-	log_file_perf.print(boost_psi_target); log_file_perf.print(",");
-
-	log_file_perf.println(boost_psi_actual);
-
-	log_file_perf.close();
-
-	// DEBUGLN("[dieslg8][SD  ][FUNC][WRIT][PERF] Done");
-}
-
+#ifdef logging_gps_enable
 void sdcard_log_gps() {
-	// Return if disabled
-	if (logging_gps_enable == 0) return;
+	// Toggle LED
+	digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
 
 	log_file_gps = SD.open("logfile_gps.csv", FILE_WRITE);
 
@@ -565,14 +539,48 @@ void sdcard_log_gps() {
 	log_file_gps.close();
 
 	// DEBUGLN("[dieslg8][SD  ][FUNC][WRIT][GPS ] Done");
+
+	// Toggle LED
+	digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
 }
+#endif
+
+#ifdef logging_perf_enable
+void sdcard_log_perf() {
+	// Toggle LED
+	digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
+
+	log_file_perf = SD.open("logfile_perf.csv", FILE_WRITE);
+
+	log_file_perf.print(ignition_off);     log_file_perf.print(",");
+	log_file_perf.print(ignition_acc);     log_file_perf.print(",");
+	log_file_perf.print(ignition_run);     log_file_perf.print(",");
+	log_file_perf.print(ignition_sta);     log_file_perf.print(",");
+	log_file_perf.print(engine_rpm);       log_file_perf.print(",");
+	log_file_perf.print(throttle_percent); log_file_perf.print(",");
+	log_file_perf.print(coolant_temp_c);   log_file_perf.print(",");
+	log_file_perf.print(boost_psi_target); log_file_perf.print(",");
+
+	log_file_perf.println(boost_psi_actual);
+
+	log_file_perf.close();
+
+	// DEBUGLN("[dieslg8][SD  ][FUNC][WRIT][PERF] Done");
+
+	// Toggle LED
+	digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
+}
+#endif
+
 
 void LED_GPS_status() {
 	if (current_fix.valid.altitude && current_fix.valid.location && current_fix.valid.speed) {
 		digitalWrite(LED_BUILTIN, HIGH);
+		return;
 	}
-}
 
+	digitalWrite(LED_BUILTIN, LOW);
+}
 
 void setup() {
 	// Initialize digital pin LED_BUILTIN as an output
@@ -588,118 +596,125 @@ void setup() {
 
 	// Init CAN, baudrate 500k
 	while (CAN.begin(CAN_500KBPS) != CAN_OK) {
-		DEBUGLN("[dieslg8][INIT][CAN ] Failure");
-		delay(1000);
+		DEBUGLN("[dieslg8][INIT][CAN ] Waiting");
+		delay(100);
 	}
 
 	DEBUGLN("[dieslg8][INIT][CAN ] OK");
 
-	// Initialize SD card logging
-	if (logging_perf_enable == 1 || logging_gps_enable == 1) {
-		if (!SD.begin(SPI_CS_SD)) {
-			DEBUGLN("[dieslg8][INIT][SD  ] Failure");
-			delay(1000);
-		}
 
-		DEBUGLN("[dieslg8][INIT][SD  ] OK");
+	// Initialize SD card logging
+#if defined (logging_gps_enable) || defined (logging_perf_enable)
+	if (!SD.begin(SPI_CS_SD)) {
+		DEBUGLN("[dieslg8][INIT][SD  ] Waiting");
+		delay(100);
+	}
+#endif
+
+	DEBUGLN("[dieslg8][INIT][SD  ] OK");
+
+#ifdef gps_enable
+	Serial1.begin(9600);
+	while (!gps.available(Serial1)) {
+		DEBUGLN("[dieslg8][INIT][GPS ] Waiting");
+		delay(100);
 	}
 
-	gpsPort.begin(9600);
+	DEBUGLN("[dieslg8][INIT][GPS ] OK");
+#endif
+
 
 	DEBUGLN("[dieslg8][INIT][MAIN] Ready");
 	digitalWrite(LED_BUILTIN, LOW);
 }
 
 void loop() {
-	// Increment loop counters
-	loop_count_01++;
-	loop_count_02++;
+	// Request status data every now and again
+	// if (ignition_run == 1) status_messwertblock_lesen();
 
-	// Request status data every 1900 loops
-	if (loop_count_01 == 1900) {
-		loop_count_01 = 0;
-		if (ignition_run == 1) status_messwertblock_lesen();
+	current_fix = gps.read();
+
+	// Wait here a little bit if we don't have a GPS signal
+	if (gps.sat_count < 3) {
+		delay(3000);
 	}
 
-	if (loop_count_02 == 10000000) {
-		loop_count_02 = 0;
+	DEBUG("[dieslg8][GPS ][STAT] ");
+	DEBUG(gps.sat_count);
+	DEBUG(" sats");
+
+	if (current_fix.valid.location) {
+		DEBUG(", Loc: ");
+		DEBUG(current_fix.latitude());
+		DEBUG(",");
+		DEBUG(current_fix.longitude());
 	}
 
-	while (gps.available(gpsPort)) {
-		current_fix = gps.read();
-
-		DEBUG("[dieslg8][GPS ][STAT] ");
-		DEBUG(gps.sat_count);
-		DEBUG(" sats");
-
-		if (current_fix.valid.location) {
-			DEBUG(", Loc: ");
-			DEBUG(current_fix.latitude());
-			DEBUG(",");
-			DEBUG(current_fix.longitude());
-		}
-
-		if (current_fix.valid.altitude) {
-			DEBUG(", Alt: ");
-			DEBUG(current_fix.altitude_ft());
-			DEBUG(" ft");
-		}
-
-		if (current_fix.valid.speed) {
-			DEBUG(", Speed: ");
-			DEBUG(current_fix.speed_mph());
-			DEBUG(" mph");
-		}
-
-		if (current_fix.valid.heading) {
-			DEBUG(", Heading: ");
-			DEBUG(current_fix.heading());
-		}
-
-		if (current_fix.valid.time && current_fix.valid.date) {
-			// Timezone/DST calculation
-			adjustTime(current_fix.dateTime);
-
-			DEBUG(", Date: ");
-			DEBUG("20");
-			DEBUG(current_fix.dateTime.year);
-
-			if (current_fix.dateTime.month < 10) DEBUG("0");
-			DEBUG(current_fix.dateTime.month);
-
-			if (current_fix.dateTime.date < 10) DEBUG("0");
-			DEBUG(current_fix.dateTime.date);
-			DEBUG(", ");
-
-			DEBUG("Time: ");
-
-			if (current_fix.dateTime.hours < 10) DEBUG("0");
-			DEBUG(current_fix.dateTime.hours);
-			DEBUG(":");
-
-			if (current_fix.dateTime.minutes < 10) DEBUG("0");
-			DEBUG(current_fix.dateTime.minutes);
-			DEBUG(":");
-
-			if (current_fix.dateTime.seconds < 10) DEBUG("0");
-			DEBUG(current_fix.dateTime.seconds);
-			DEBUG(".");
-
-			if (current_fix.dateTime_cs < 10) DEBUG("0");
-			DEBUG(current_fix.dateTime_cs);
-		}
-
-		LED_GPS_status();
-
-		DEBUGLN();
-
-		sdcard_log_gps();
+	if (current_fix.valid.altitude) {
+		DEBUG(", Alt: ");
+		DEBUG(current_fix.altitude_ft());
+		DEBUG(" ft");
 	}
+
+	if (current_fix.valid.speed) {
+		DEBUG(", Speed: ");
+		DEBUG(current_fix.speed_mph());
+		DEBUG(" mph");
+	}
+
+	if (current_fix.valid.heading) {
+		DEBUG(", Heading: ");
+		DEBUG(current_fix.heading());
+	}
+
+	if (current_fix.valid.time && current_fix.valid.date) {
+		// Timezone/DST calculation
+		adjustTime(current_fix.dateTime);
+
+		DEBUG(", Date: ");
+		DEBUG("20");
+		DEBUG(current_fix.dateTime.year);
+
+		if (current_fix.dateTime.month < 10) DEBUG("0");
+		DEBUG(current_fix.dateTime.month);
+
+		if (current_fix.dateTime.date < 10) DEBUG("0");
+		DEBUG(current_fix.dateTime.date);
+		DEBUG(", ");
+
+		DEBUG("Time: ");
+
+		if (current_fix.dateTime.hours < 10) DEBUG("0");
+		DEBUG(current_fix.dateTime.hours);
+		DEBUG(":");
+
+		if (current_fix.dateTime.minutes < 10) DEBUG("0");
+		DEBUG(current_fix.dateTime.minutes);
+		DEBUG(":");
+
+		if (current_fix.dateTime.seconds < 10) DEBUG("0");
+		DEBUG(current_fix.dateTime.seconds);
+		DEBUG(".");
+
+		if (current_fix.dateTime_cs < 10) DEBUG("0");
+		DEBUG(current_fix.dateTime_cs);
+	}
+
+	LED_GPS_status();
+
+	DEBUGLN();
+
+	sdcard_log_gps();
 
 
 	// Check if incoming data is available
 	if (CAN_MSGAVAIL == CAN.checkReceive()) {
 		bool print_msg = 1;
+
+		// Ignition bitmask values to match against
+		const int mask_ignition_acc = 0xC1; // buf[0]
+		const int mask_ignition_run = 0xC5; // buf[0]
+		const int mask_ignition_sta = 0xD5; // buf[0]
 
 		// Read CAN message data
 		// len : data length
@@ -725,7 +740,9 @@ void loop() {
 
 					if (ignition_run != 1) {
 						DEBUGLN("[dieslg8][IGN ][RUN ] Active");
+#ifdef gauge_sweep_enable
 						gauge_sweep();
+#endif
 					}
 
 					ignition_off = 0;
@@ -739,7 +756,9 @@ void loop() {
 				if ((buf[0] & mask_ignition_run) == mask_ignition_run) {
 					if (ignition_run != 1) {
 						DEBUGLN("[dieslg8][IGN ][RUN ] Active");
+#ifdef gauge_sweep_enable
 						gauge_sweep();
+#endif
 					}
 
 					ignition_off = 0;
@@ -771,7 +790,9 @@ void loop() {
 					reset_oil();
 				}
 
+#ifdef temp_flash_enable
 				temp_flashed = 0;
+#endif
 
 				ignition_off = 1;
 				ignition_acc = 0;
@@ -806,7 +827,9 @@ void loop() {
 
 					coolant_temp_c = (value_02 * 0.01) - 100;
 
+#ifdef temp_flash_enable
 					if (coolant_temp_c > coolant_c_target) temp_flash();
+#endif
 
 					// DEBUG("[dieslg8][DATA][BSTt] "); DEBUGLN(boost_psi_target);
 					// DEBUG("[dieslg8][DATA][CLTc] "); DEBUGLN(coolant_temp_c);
@@ -848,6 +871,8 @@ void loop() {
 			DEBUGLN();
 		}
 	}
+
+	delay(250);
 }
 
 
