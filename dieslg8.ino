@@ -96,16 +96,6 @@ bool sweep_done = 0;
 // Declare CAN handle
 MCP_CAN CAN(SPI_CS_CAN);
 
-// Declare File handles for logging
-#ifdef logging_gps_enable
-File log_file_gps;
-#endif
-
-#ifdef logging_perf_enable
-File log_file_perf;
-#endif
-
-
 // Declare GPS handle
 NMEAGPS gps;
 gps_fix current_fix;
@@ -497,50 +487,55 @@ void sdcard_log_gps() {
 	// Toggle LED
 	digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
 
-	log_file_gps = SD.open("logfile_gps.csv", FILE_WRITE);
+	File log_file_gps = SD.open("gps.csv", FILE_WRITE);
 
-	log_file_gps.print(gps.sat_count); log_file_gps.print(",");
+	if (log_file_gps) {
+		log_file_gps.print(gps.sat_count); log_file_gps.print(",");
 
-	log_file_gps.print("20");
-	log_file_gps.print(current_fix.dateTime.year);
+		log_file_gps.print("20");
+		log_file_gps.print(current_fix.dateTime.year);
 
-	if (current_fix.dateTime.month < 10) log_file_gps.print("0");
-	log_file_gps.print(current_fix.dateTime.month);
+		if (current_fix.dateTime.month < 10) log_file_gps.print("0");
+		log_file_gps.print(current_fix.dateTime.month);
 
-	if (current_fix.dateTime.date < 10) log_file_gps.print("0");
-	log_file_gps.print(current_fix.dateTime.date);
-	log_file_gps.print(",");
+		if (current_fix.dateTime.date < 10) log_file_gps.print("0");
+		log_file_gps.print(current_fix.dateTime.date);
+		log_file_gps.print(",");
 
-	if (current_fix.dateTime.hours < 10) log_file_gps.print("0");
-	log_file_gps.print(current_fix.dateTime.hours);
-	log_file_gps.print(":");
+		if (current_fix.dateTime.hours < 10) log_file_gps.print("0");
+		log_file_gps.print(current_fix.dateTime.hours);
+		log_file_gps.print(":");
 
-	if (current_fix.dateTime.minutes < 10) log_file_gps.print("0");
-	log_file_gps.print(current_fix.dateTime.minutes);
-	log_file_gps.print(":");
+		if (current_fix.dateTime.minutes < 10) log_file_gps.print("0");
+		log_file_gps.print(current_fix.dateTime.minutes);
+		log_file_gps.print(":");
 
-	if (current_fix.dateTime.seconds < 10) log_file_gps.print("0");
-	log_file_gps.print(current_fix.dateTime.seconds);
-	log_file_gps.print(".");
+		if (current_fix.dateTime.seconds < 10) log_file_gps.print("0");
+		log_file_gps.print(current_fix.dateTime.seconds);
+		log_file_gps.print(".");
 
-	if (current_fix.dateTime_cs < 10) log_file_gps.print("0");
-	log_file_gps.print(current_fix.dateTime_cs);
+		if (current_fix.dateTime_cs < 10) log_file_gps.print("0");
+		log_file_gps.print(current_fix.dateTime_cs);
 
-	log_file_gps.print(",");
+		log_file_gps.print(",");
 
-	log_file_gps.print(current_fix.heading());     log_file_gps.print(",");
-	log_file_gps.print(current_fix.latitude());    log_file_gps.print(",");
-	log_file_gps.print(current_fix.longitude());   log_file_gps.print(",");
-	log_file_gps.print(current_fix.altitude_ft()); log_file_gps.print(",");
-	log_file_gps.print(current_fix.speed_mph());   log_file_gps.print(",");
+		log_file_gps.print(current_fix.heading());     log_file_gps.print(",");
+		log_file_gps.print(current_fix.latitude());    log_file_gps.print(",");
+		log_file_gps.print(current_fix.longitude());   log_file_gps.print(",");
+		log_file_gps.print(current_fix.altitude_ft()); log_file_gps.print(",");
+		log_file_gps.print(current_fix.speed_mph());   log_file_gps.print(",");
 
-	log_file_gps.println("");
+		log_file_gps.println("");
 
-	log_file_gps.close();
+		log_file_gps.close();
 
-	// DEBUG("\n[dieslg8][SD  ][FUNC][WRIT][GPS ] Done");
+		// DEBUG("\n[dieslg8][SD  ][FUNC][WRIT][GPS ] Done");
 
-	delay(10);
+		delay(10);
+	}
+	else {
+		DEBUG("\n[dieslg8][SD  ][FUNC][WRIT][GPS ] Failed to write log to SD card");
+	}
 
 	// Toggle LED
 	digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
@@ -552,25 +547,31 @@ void sdcard_log_perf() {
 	// Toggle LED
 	digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
 
-	log_file_perf = SD.open("logfile_perf.csv", FILE_WRITE);
+	File log_file_perf = SD.open("perf.csv", FILE_WRITE);
 
-	log_file_perf.print(ignition_off);     log_file_perf.print(",");
-	log_file_perf.print(ignition_acc);     log_file_perf.print(",");
-	log_file_perf.print(ignition_run);     log_file_perf.print(",");
-	log_file_perf.print(ignition_sta);     log_file_perf.print(",");
-	log_file_perf.print(engine_rpm);       log_file_perf.print(",");
-	log_file_perf.print(throttle_percent); log_file_perf.print(",");
-	log_file_perf.print(coolant_temp_c);   log_file_perf.print(",");
-	log_file_perf.print(boost_psi_target); log_file_perf.print(",");
+	if (log_file_perf) {
+		log_file_perf.print(ignition_off);     log_file_perf.print(",");
+		log_file_perf.print(ignition_acc);     log_file_perf.print(",");
+		log_file_perf.print(ignition_run);     log_file_perf.print(",");
+		log_file_perf.print(ignition_sta);     log_file_perf.print(",");
+		log_file_perf.print(engine_rpm);       log_file_perf.print(",");
+		log_file_perf.print(throttle_percent); log_file_perf.print(",");
+		log_file_perf.print(coolant_temp_c);   log_file_perf.print(",");
+		log_file_perf.print(boost_psi_target); log_file_perf.print(",");
 
-	log_file_perf.println(boost_psi_actual);
+		log_file_perf.println(boost_psi_actual);
 
-	log_file_perf.close();
+		log_file_perf.close();
 
-	DEBUGLN("[dieslg8][SD  ][FUNC][WRIT][PERF] Done");
+		// DEBUGLN("[dieslg8][SD  ][FUNC][WRIT][PERF] Done");
+		delay(10);
+	}
+	else {
+		DEBUG("\n[dieslg8][SD  ][FUNC][WRIT][PERF] Failed to write log to SD card");
+	}
 
-	// Toggle LED back
-	LED_GPS_status();
+	// Toggle LED
+	digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
 }
 #endif
 
