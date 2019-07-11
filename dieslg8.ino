@@ -4,7 +4,6 @@
 #include <NMEAGPS.h>
 
 
-
 // Debug mode
 #define DBG true
 
@@ -13,11 +12,12 @@
 #define DEBUGLN(x)   if (DBG && Serial) { Serial.println(x);  }
 #define DEBUG2(x, y) if (DBG && Serial) { Serial.print(x, y); }
 
-// SPI pin config
+// Config: SPI pins
 #define SPI_CS_CAN 9
 #define SPI_CS_SD  4
 
 
+// Config: Enable GPS
 #define gps_enable 1
 
 // Config: unit limits for gauges
@@ -48,6 +48,7 @@
 #define hijack_fuel_coolant_enable 0
 #define hijack_oil_boost_enable    0
 #define hijack_oil_coolant_enable  1
+
 
 // Config: step limits for gauges
 #define steps_max_large 4667 // Large gauges (speedo, tach)
@@ -634,11 +635,6 @@ void loop() {
 
 	while (gps.available(Serial1)) {
 		current_fix = gps.read();
-
-		// Wait here a little bit if we don't have a GPS signal
-		if (gps.sat_count < 3) {
-			delay(3000);
-		}
 
 		DEBUG("[dieslg8][GPS ][STAT] ");
 		DEBUG(gps.sat_count);
