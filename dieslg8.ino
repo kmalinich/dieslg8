@@ -489,6 +489,8 @@ void sdcard_log_gps() {
 
 	File log_file_gps = SD.open("gps.csv", FILE_WRITE);
 
+	// Format:
+	// Satellites,Date,Time,Heading,Latitude,Longitude,Altitude,SpeedMPH
 	if (log_file_gps) {
 		log_file_gps.print(gps.sat_count); log_file_gps.print(",");
 
