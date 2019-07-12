@@ -5,7 +5,7 @@
 
 
 // Debug mode
-#define DBG true
+#define DBG false
 
 // Debug macro to print messages to serial
 #define DEBUG(x)     if (DBG && Serial) { Serial.print(x);    }
@@ -494,8 +494,9 @@ void sdcard_log_gps() {
 	if (log_file_gps) {
 		log_file_gps.print(gps.sat_count); log_file_gps.print(",");
 
-		log_file_gps.print("20");
-		log_file_gps.print(current_fix.dateTime.year);
+		// log_file_gps.print("20");
+		// log_file_gps.print(current_fix.dateTime.year);
+		log_file_gps.print("2019");
 
 		if (current_fix.dateTime.month < 10) log_file_gps.print("0");
 		log_file_gps.print(current_fix.dateTime.month);
@@ -671,8 +672,8 @@ void loop() {
 			adjustTime(current_fix.dateTime);
 
 			DEBUG(", Date: ");
-			DEBUG("20");
-			DEBUG(current_fix.dateTime.year);
+			// DEBUG("20"); DEBUG(current_fix.dateTime.year);
+			DEBUG("2019");
 
 			if (current_fix.dateTime.month < 10) DEBUG("0");
 			DEBUG(current_fix.dateTime.month);
