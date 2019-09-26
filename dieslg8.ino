@@ -522,7 +522,7 @@ void setup() {
 		// Initialize serial output for logging
 		Serial.begin(115200);
 		while (!Serial) {
-			if (serial_counter > 5) break;
+			if (serial_counter > 10) break;
 			serial_counter++;
 
 			digitalWrite(LED_BUILTIN, LOW);
