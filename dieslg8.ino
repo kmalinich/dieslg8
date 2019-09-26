@@ -314,8 +314,8 @@ void gauge_sweep() {
 
 #ifdef hijack_fuel_boost_enable
 void hijack_fuel_boost() {
-	// Return if less than 10 hPa, throttle under 39%, or engine RPM under 400
-	if (boost_hpa_actual < 10 || throttle_percent < 39 || engine_rpm < 400) {
+	// Return if less than 10 hPa, throttle under 30%, or engine RPM under 400
+	if (boost_hpa_actual < 10 || throttle_percent < 30 || engine_rpm < 400) {
 		reset_fuel();
 		return;
 	}
@@ -349,6 +349,8 @@ void hijack_fuel(unsigned int steps) {
 		return;
 	}
 
+	digitalWrite(LED_BUILTIN, HIGH);
+
 	hijack_fuel_active = 1;
 	hijack_gauge(0x22, steps);
 }
@@ -359,6 +361,8 @@ void reset_fuel() {
 
 	DEBUGLN("[dieslg8][CAN ][FUNC][HIJK][FUEL] Reset");
 
+	digitalWrite(LED_BUILTIN, LOW);
+
 	reset_gauge(0x22);
 	hijack_fuel_active = 0;
 }
@@ -367,8 +371,8 @@ void reset_fuel() {
 
 #ifdef hijack_oil_boost_enable
 void hijack_oil_boost() {
-	// Return if less than 10 hPa, throttle under 39%, or engine RPM under 400
-	if (boost_hpa_target < 10 || throttle_percent < 39 || engine_rpm < 400) {
+	// Return if less than 10 hPa, throttle under 30%, or engine RPM under 400
+	if (boost_hpa_target < 10 || throttle_percent < 30 || engine_rpm < 400) {
 		reset_oil();
 		return;
 	}
@@ -509,15 +513,31 @@ void sdcard_log_perf() {
 void setup() {
 	// Initialize digital pin LED_BUILTIN as an output
 	pinMode(LED_BUILTIN, OUTPUT);
-	digitalWrite(LED_BUILTIN, HIGH);
+	digitalWrite(LED_BUILTIN, LOW);
 
 	// Wait for serial connection when debugging
 	if (DBG) {
+		unsigned int serial_counter = 0;
+
 		// Initialize serial output for logging
 		Serial.begin(115200);
-		while (!Serial) ;
-		delay(1000);
+		while (!Serial) {
+			if (serial_counter > 5) break;
+			serial_counter++;
+
+			digitalWrite(LED_BUILTIN, LOW);
+			delay(250);
+			digitalWrite(LED_BUILTIN, HIGH);
+			delay(250);
+			digitalWrite(LED_BUILTIN, LOW);
+			delay(250);
+			digitalWrite(LED_BUILTIN, HIGH);
+			delay(250);
+		}
 	}
+
+	DEBUG("[dieslg8][INIT][CAN ] serial_counter: "); DEBUGLN(serial_counter);
+	digitalWrite(LED_BUILTIN, HIGH);
 
 	// Init CAN, baudrate 500k
 	while (CAN.begin(CAN_500KBPS) != CAN_OK) {
@@ -708,6 +728,7 @@ void loop() {
 					boost_hpa_actual = (value_02 * 0.091554) - ambient_hpa;
 					if (boost_hpa_actual < 0) boost_hpa_actual = 0;
 
+					float boost_hpa_actual_last = boost_hpa_actual;
 					boost_psi_actual = boost_hpa_actual / hpa2psi;
 
 					// DEBUG("[dieslg8][CAN ][DATA][AMBh] "); DEBUGLN(ambient_hpa);
@@ -716,10 +737,10 @@ void loop() {
 					// DEBUG("[dieslg8][CAN ][DATA][BSAp] "); DEBUGLN(boost_psi_actual);
 
 #ifdef hijack_fuel_boost_enable
-					hijack_fuel_boost();
+					if (boost_hpa_actual_last != boost_hpa_actual) hijack_fuel_boost();
 #endif
 #ifdef hijack_oil_boost_enable
-					hijack_oil_boost();
+					if (boost_hpa_actual_last != boost_hpa_actual) hijack_oil_boost();
 #endif
 				}
 				else if (data_expected == 1) { // 1 = Coolant temp + Boost target
@@ -731,7 +752,8 @@ void loop() {
 
 					boost_psi_target = boost_hpa_target / hpa2psi;
 
-					int coolant_temp_c_new = (value_02 * 0.01) - 100;
+					int coolant_temp_c_last = coolant_temp_c;
+					coolant_temp_c = (value_02 * 0.01) - 100;
 
 					// DEBUG("[dieslg8][CAN ][DATA][BSTh] "); DEBUGLN(boost_hpa_target);
 					// DEBUG("[dieslg8][CAN ][DATA][BSTp] "); DEBUGLN(boost_psi_target);
@@ -750,20 +772,12 @@ void loop() {
 					}
 #endif
 
-#ifdef hijack_fuel_boost_enable
-					hijack_fuel_boost();
-#endif
 #ifdef hijack_fuel_coolant_enable
-					if (coolant_temp_c_new != coolant_temp_c) hijack_fuel_coolant();
-#endif
-#ifdef hijack_oil_boost_enable
-					hijack_oil_boost();
+					if (coolant_temp_c_last != coolant_temp_c) hijack_fuel_coolant();
 #endif
 #ifdef hijack_oil_coolant_enable
-					if (coolant_temp_c_new != coolant_temp_c) hijack_oil_coolant();
+					if (coolant_temp_c_last != coolant_temp_c) hijack_oil_coolant();
 #endif
-
-					coolant_temp_c = coolant_temp_c_new;
 				}
 				else if (data_expected == 2) { // 2 = Pedal position + Engine RPM
 					unsigned int value_01 = (buf[4] << 8) | buf[5]; // Pedal
