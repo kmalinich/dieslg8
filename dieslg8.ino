@@ -534,9 +534,10 @@ void setup() {
 			digitalWrite(LED_BUILTIN, HIGH);
 			delay(250);
 		}
+
+		DEBUG("[dieslg8][INIT][CAN ] serial_counter: "); DEBUGLN(serial_counter);
 	}
 
-	DEBUG("[dieslg8][INIT][CAN ] serial_counter: "); DEBUGLN(serial_counter);
 	digitalWrite(LED_BUILTIN, HIGH);
 
 	// Init CAN, baudrate 500k
