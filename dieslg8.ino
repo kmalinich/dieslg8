@@ -1,5 +1,5 @@
 // Debug mode
-#define DBG true
+#define DBG false
 
 // Debug macro to print messages to serial
 #define DEBUG(x)     if (DBG && Serial) { Serial.print(x);     }
@@ -18,16 +18,16 @@
 // #define code_clear_specific_enable true
 
 // Config: disable/enable turn signal LED flash when coolant temp reaches target
-// #define temp_flash_enable true
+#define temp_flash_enable true
 
 // Config: disable/enable gauge sweep
 #define gauge_sweep_enable true
 
 // Config: disable/enable gauge hijacking
 #define hijack_fuel_boost_enable true
-// #define hijack_fuel_coolant_enable 1
-// #define hijack_oil_boost_enable 1
-#define hijack_oil_coolant_enable true
+// #define hijack_fuel_coolant_enable true
+#define hijack_oil_boost_enable true
+// #define hijack_oil_coolant_enable true
 
 
 // Config: unit limits for gauges
@@ -307,8 +307,8 @@ void gauge_sweep() {
 
 #ifdef hijack_fuel_boost_enable
 void hijack_fuel_boost() {
-	// Return if less than 10 hPa, throttle under 45%, or engine RPM under 400
-	if (boost_hpa_actual < 10 || throttle_percent < 45 || engine_rpm < 400) {
+	// Return if less than 10 hPa, throttle under 49%, or engine RPM under 1000
+	if (boost_hpa_actual < 10 || throttle_percent < 49 || engine_rpm < 1000) {
 		reset_fuel();
 		return;
 	}
@@ -364,8 +364,8 @@ void reset_fuel() {
 
 #ifdef hijack_oil_boost_enable
 void hijack_oil_boost() {
-	// Return if less than 10 hPa, throttle under 45%, or engine RPM under 400
-	if (boost_hpa_target < 10 || throttle_percent < 45 || engine_rpm < 400) {
+	// Return if less than 10 hPa, throttle under 49%, or engine RPM under 1000
+	if (boost_hpa_target < 10 || throttle_percent < 49 || engine_rpm < 1000) {
 		reset_oil();
 		return;
 	}
@@ -719,10 +719,12 @@ void loop() {
 					ambient_hpa = value_01 * 0.030518;
 					ambient_psi = ambient_hpa / hpa2psi;
 
+#ifdef hijack_fuel_boost_enable
+					float boost_hpa_actual_last = boost_hpa_actual;
+#endif
 					boost_hpa_actual = (value_02 * 0.091554) - ambient_hpa;
 					if (boost_hpa_actual < 0) boost_hpa_actual = 0;
 
-					float boost_hpa_actual_last = boost_hpa_actual;
 					boost_psi_actual = boost_hpa_actual / hpa2psi;
 
 					// DEBUG("[dieslg8][CAN ][DATA][AMBh] "); DEBUGLN(ambient_hpa);
@@ -733,21 +735,25 @@ void loop() {
 #ifdef hijack_fuel_boost_enable
 					if (boost_hpa_actual_last != boost_hpa_actual) hijack_fuel_boost();
 #endif
-#ifdef hijack_oil_boost_enable
-					if (boost_hpa_actual_last != boost_hpa_actual) hijack_oil_boost();
-#endif
 				}
 				else if (data_expected == 1) { // 1 = Coolant temp + Boost target
 					unsigned int value_01 = (buf[4] << 8) | buf[5];
+#if defined(hijack_fuel_coolant_enable) || defined(hijack_oil_coolant_enable)
 					unsigned int value_02 = (buf[6] << 8) | buf[7];
+#endif
 
+#ifdef hijack_oil_boost_enable
+					float boost_hpa_target_last = boost_hpa_target;
+#endif
 					boost_hpa_target = (value_01 * 0.091554) - ambient_hpa;
 					if (boost_hpa_target < 0) boost_hpa_target = 0;
 
 					boost_psi_target = boost_hpa_target / hpa2psi;
 
+#if defined(hijack_fuel_coolant_enable) || defined(hijack_oil_coolant_enable)
 					int coolant_temp_c_last = coolant_temp_c;
 					coolant_temp_c = (value_02 * 0.01) - 100;
+#endif
 
 					// DEBUG("[dieslg8][CAN ][DATA][BSTh] "); DEBUGLN(boost_hpa_target);
 					// DEBUG("[dieslg8][CAN ][DATA][BSTp] "); DEBUGLN(boost_psi_target);
@@ -764,6 +770,9 @@ void loop() {
 					else if (coolant_temp_c < coolant_c_target_lo) {
 						acc_reset();
 					}
+#endif
+#ifdef hijack_oil_boost_enable
+					if (boost_hpa_target_last != boost_hpa_target) hijack_oil_boost();
 #endif
 
 #ifdef hijack_fuel_coolant_enable
