@@ -314,8 +314,8 @@ void gauge_sweep() {
 
 #ifdef hijack_fuel_boost_enable
 void hijack_fuel_boost() {
-	// Return if less than 10 hPa, throttle under 30%, or engine RPM under 400
-	if (boost_hpa_actual < 10 || throttle_percent < 30 || engine_rpm < 400) {
+	// Return if less than 10 hPa, throttle under 45%, or engine RPM under 400
+	if (boost_hpa_actual < 10 || throttle_percent < 45 || engine_rpm < 400) {
 		reset_fuel();
 		return;
 	}
@@ -371,8 +371,8 @@ void reset_fuel() {
 
 #ifdef hijack_oil_boost_enable
 void hijack_oil_boost() {
-	// Return if less than 10 hPa, throttle under 30%, or engine RPM under 400
-	if (boost_hpa_target < 10 || throttle_percent < 30 || engine_rpm < 400) {
+	// Return if less than 10 hPa, throttle under 45%, or engine RPM under 400
+	if (boost_hpa_target < 10 || throttle_percent < 45 || engine_rpm < 400) {
 		reset_oil();
 		return;
 	}
