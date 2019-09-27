@@ -710,7 +710,7 @@ ITDH7,0x18B1,STAT_ZEIT_HPTEST_DRUCKABBAU7_WERT,unsigned long,-,ms,-,10,-,0,Rail_
 ITDRU,0x1905,STAT_RUNUP_ZEIT_DOWN_WERT,unsigned long,-,us,-,0.4,-,0,IVPlaus_tiDwnRunUpTst,Zeit für die Herablaufphase des Hochlauftests,Zeit für die Herablaufphase des Hochlauftests
 ITGEE,0x0E43,STAT_GENERATOR_ELEKTRONIKTEMPERATUR_WERT,unsigned int,-,degC,-,0.1,-,0,Tchip,Chiptemperatur - Generator,Chiptemperatur - Generator
 ITKRS,0x0385,STAT_KRAFTSTOFFTEMPERATUR_WERT,unsigned int,-,degC,-,0.01,-,-50,FuelT_t,Kraftstofftemperatur,Kraftstofftemperatur
-ITKUM,0x0547,STAT_KUEHLMITTELTEMPERATUR_WERT,unsigned int,-,degC,-,0.01,-,-100,CEngDsT_t,Kühlmitteltemperatur,Kühlmitteltemperatur
+ITKUM,0x0547,STAT_KUEHLMITTELTEMPERATUR_WERT,unsigned int,-,degC,-,0.01,-,-100,CEngDsT_t,Kühlmitteltemperatur,Coolant temperature
 ITLAL,0x076F,STAT_LADELUFTTEMPERATUR_WERT,unsigned int,-,degC,-,0.01,-,-100,Air_tCACDs,Ladelufttemperatur nach Ladeluftkühler,Charge air temperature after charge air cooler
 ITMOT,0x0AF1,STAT_MOTORTEMPERATUR_WERT,unsigned int,-,degC,-,0.1,-,-273.14,EngDa_tEng,Motortemperatur,Engine temperature
 ITOEL,0x0A8C,STAT_MOTOROEL_TEMPERATUR_WERT,unsigned int,-,degC,-,0.01,-,-100,Oil_tSwmp,?ltemperatur,?ltemperatur
