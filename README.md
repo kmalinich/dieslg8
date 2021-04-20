@@ -21,6 +21,8 @@ Clear DTCs and hijack gauges with Arduino+CAN
 * Bosch EDC17 DDE
 
 ## Functions
+* NODE: ACC LED hijack is not working, I need to find the relevant bits and I don't have a test mule anymore
+* Flash turn signal LEDs in cluster when coolant temp target is reached (a la N54 JB4)
 * Gauge sweep on startup
   * Sweeps all 4 gauges, not just speedo and tach
 * Log data to CSV on MicroSD card

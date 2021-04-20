@@ -29,7 +29,7 @@
 
 // Config: disable/enable oil gauge hijacking
 // #define hijack_oil_boost_enable true
-// #define hijack_oil_coolant_enable true
+#define hijack_oil_coolant_enable true
 
 
 // Config: unit limits for gauges
@@ -429,7 +429,7 @@ void hijack_gauge(int gauge_id, int steps) {
 // Un-hijack a gauge
 void reset_gauge(unsigned int gauge_id) {
 	// Gauge IDs
-	// 0x20 = Speedometer
+	// 0x20 = Speedomter
 	// 0x21 = Tachometer
 	// 0x22 = Fuel
 	// 0x23 = Oil
@@ -440,21 +440,21 @@ void reset_gauge(unsigned int gauge_id) {
 
 
 // Get data
-// 0x01, 0xF4 : [SPLAD]  Boost pressure, target     hPA  x*0.091554
-// 0x07, 0x6D : [IPLAD]  Boost pressure, actual     hPa  x*0.091554
-// 0x05, 0x47 : [ITKUM]  Coolant temp               C    (x/100)-100
-// 0x0C, 0x1C : [IPUMG]  Ambient pressure           hPa  x*0.030518
 // 0x01, 0x62 : [IFPWG]  Pedal position (filtered)  %    x*0.012207
+// 0x01, 0xF4 : [SPLAD]  Boost pressure, target     hPA  x*0.091554
+// 0x05, 0x47 : [ITKUM]  Coolant temp               C    (x/100)-100
+// 0x07, 0x6D : [IPLAD]  Boost pressure, actual     hPa  x*0.091554
+// 0x0C, 0x1C : [IPUMG]  Ambient pressure           hPa  x*0.030518
 // 0x18, 0x81 : [INMOT]  Engine RPM, actual         %    x*0.5
 //
 // 0x05, 0x79 : [SMIBA]  Limiter, internal torque   Nm   (x/10)
 // 0x05, 0x7B : [IMBEG]  Setpoint, internal torque  Nm   (x*0.114443)-2500
 // 0x07, 0xD1 : [IMOAK]  Torque, actual             Nm   (x*0.114443)-2500
 //
-// 0x0F, 0xD2 : [ITUMG]  Ambient temp                       C  (x/10)-273.14
 // 0x07, 0x6F : [ITLAL]  Intake air temp, post intercooler  C  (x/100)-100
-// 0x0A, 0xF1 : [ITMOT]  Engine temp                        C  (x/10)-273.14
 // 0x0A, 0x8C : [ITOEL]  Oil temp                           C  (x/100)-100
+// 0x0A, 0xF1 : [ITMOT]  Engine temp                        C  (x/10)-273.14
+// 0x0F, 0xD2 : [ITUMG]  Ambient temp                       C  (x/10)-273.14
 void status_messwertblock_lesen() {
 	// 0 = Ambient pressure + Boost pressure actual
 	// 1 = Coolant temp     + Boost pressure target
