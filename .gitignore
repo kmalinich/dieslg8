@@ -5,7 +5,6 @@
 ._*
 .DS_Store
 
-/*.elf
-/*.hex
+/build
 
 /test/
