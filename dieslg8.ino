@@ -14,7 +14,7 @@
 // #define acc_led_enable true
 
 // Config: disable/enable automatic code clearing
-// #define code_clear_all_enable true
+// #define code_clear_all_enable      true
 // #define code_clear_specific_enable true
 
 // Config: disable/enable turn signal LED flash when coolant temp reaches target
@@ -23,10 +23,12 @@
 // Config: disable/enable gauge sweep
 #define gauge_sweep_enable true
 
-// Config: disable/enable gauge hijacking
+// Config: disable/enable fuel gauge hijacking
 #define hijack_fuel_boost_enable true
 // #define hijack_fuel_coolant_enable true
-#define hijack_oil_boost_enable true
+
+// Config: disable/enable oil gauge hijacking
+// #define hijack_oil_boost_enable true
 // #define hijack_oil_coolant_enable true
 
 
@@ -162,19 +164,19 @@ void code_clear_specific() {
 
 	can_send(0x6F1, 0x12, 0x04, 0x18, 0x02, 0xFF, 0xFF, 0x00, 0x00); delay(75);
 
-	turn_set(0x01);
+	hijack_turn(0x01);
 	can_send(0x612, 0xF1, 0x10, 0x1A, 0x58, 0x08, 0x4C, 0xAE, 0xE1); delay(75);
 	can_send(0x6F1, 0x12, 0x30, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00); delay(75);
 	can_send(0x612, 0xF1, 0x23, 0x3F, 0xF1, 0x21, 0x4B, 0x39, 0x21); delay(75);
 	can_send(0x612, 0xF1, 0x24, 0x4A, 0x24, 0xE1, 0xFF, 0xFF, 0xFF); delay(75);
 
-	turn_set(0x02);
+	hijack_turn(0x02);
 	can_send(0x612, 0xF1, 0x21, 0x48, 0x5C, 0xE1, 0x4B, 0x73, 0xE1); delay(75);
 	can_send(0x6F1, 0x12, 0x03, 0x14, 0xFF, 0xFF, 0x00, 0x00, 0x00); delay(75);
 	can_send(0x612, 0xF1, 0x03, 0x7F, 0x14, 0x78, 0xFF, 0xFF, 0xFF); delay(75);
 	can_send(0x612, 0xF1, 0x03, 0x54, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF); delay(75);
 
-	turn_reset();
+	reset_turn();
 }
 #endif
 
@@ -183,12 +185,12 @@ void code_clear_specific() {
 void code_clear_all() {
 	DEBUGLN("[dieslg8][CAN ][FUNC][DTC ][CLR ] All");
 
-	// turn_set(0x01);
+	// hijack_turn(0x01);
 
-	// can_send(0x6F1, 0x12, 0x03, 0x04, 0xFF, 0xFF, 0x00, 0x00, 0x00); turn_set(0x02); delay(100);
-	// can_send(0x6F1, 0x12, 0x03, 0x04, 0xFF, 0xFF, 0x00, 0x00, 0x00); turn_set(0x01); delay(100);
-	// can_send(0x6F1, 0x12, 0x03, 0x04, 0xFF, 0xFF, 0x00, 0x00, 0x00); turn_set(0x02); delay(100);
-	// can_send(0x6F1, 0x12, 0x03, 0x04, 0xFF, 0xFF, 0x00, 0x00, 0x00); turn_set(0x01); delay(100);
+	// can_send(0x6F1, 0x12, 0x03, 0x04, 0xFF, 0xFF, 0x00, 0x00, 0x00); hijack_turn(0x02); delay(100);
+	// can_send(0x6F1, 0x12, 0x03, 0x04, 0xFF, 0xFF, 0x00, 0x00, 0x00); hijack_turn(0x01); delay(100);
+	// can_send(0x6F1, 0x12, 0x03, 0x04, 0xFF, 0xFF, 0x00, 0x00, 0x00); hijack_turn(0x02); delay(100);
+	// can_send(0x6F1, 0x12, 0x03, 0x04, 0xFF, 0xFF, 0x00, 0x00, 0x00); hijack_turn(0x01); delay(100);
 	// can_send(0x6F1, 0x12, 0x03, 0x04, 0xFF, 0xFF, 0x00, 0x00, 0x00); delay(100);
 
 	can_send(0x6F1, 0x12, 0x03, 0x04, 0xFF, 0xFF, 0x00, 0x00, 0x00); delay(100);
@@ -197,7 +199,7 @@ void code_clear_all() {
 	can_send(0x6F1, 0x12, 0x03, 0x04, 0xFF, 0xFF, 0x00, 0x00, 0x00); delay(100);
 	can_send(0x6F1, 0x12, 0x03, 0x04, 0xFF, 0xFF, 0x00, 0x00, 0x00); delay(100);
 
-	// turn_reset();
+	// reset_turn();
 }
 #endif
 
@@ -209,19 +211,19 @@ void temp_flash() {
 
 	DEBUGLN("[dieslg8][CAN ][FUNC][KOMB][COOL] Turn LED flash");
 
-	turn_set(0x01); delay(111);
-	turn_set(0x03); delay(111);
-	turn_set(0x02); delay(111);
+	hijack_turn(0x01); delay(111);
+	hijack_turn(0x03); delay(111);
+	hijack_turn(0x02); delay(111);
 
-	turn_set(0x01); delay(111);
-	turn_set(0x03); delay(111);
-	turn_set(0x02); delay(111);
+	hijack_turn(0x01); delay(111);
+	hijack_turn(0x03); delay(111);
+	hijack_turn(0x02); delay(111);
 
-	turn_set(0x01); delay(111);
-	turn_set(0x03); delay(111);
-	turn_set(0x02); delay(111);
+	hijack_turn(0x01); delay(111);
+	hijack_turn(0x03); delay(111);
+	hijack_turn(0x02); delay(111);
 
-	turn_reset();
+	reset_turn();
 
 	temp_flashed = 1;
 }
@@ -234,7 +236,7 @@ void temp_flash() {
 // 0x01 :
 // 0x02 :
 // 0x03 :
-void acc_set() {
+void hijack_acc() {
 	// Return if already on
 	if (acc_led_on == 1) return;
 
@@ -247,7 +249,7 @@ void acc_set() {
 }
 
 // Reset active cruise LED(s) in the cluster
-void acc_reset() {
+void reset_acc() {
 	// Return if already off
 	if (acc_led_on == 0) return;
 
@@ -267,14 +269,14 @@ void acc_reset() {
 // 0x01 : Left
 // 0x02 : Right
 // 0x03 : Both
-void turn_set(unsigned int led_mask) {
+void hijack_turn(unsigned int led_mask) {
 	DEBUGLN("[dieslg8][CAN ][FUNC][KOMB][TURN] Set");
 
 	can_send(0x6F1, 0x60, 0x05, 0x30, 0x2B, 0x06, led_mask, 0x04, 0x00);
 }
 
 // Reset turn signal LED(s) in the cluster
-void turn_reset() {
+void reset_turn() {
 	DEBUGLN("[dieslg8][CAN ][FUNC][KOMB][TURN] Reset");
 
 	can_send(0x6F1, 0x60, 0x03, 0x30, 0x2B, 0x00, 0x00, 0x00, 0x00);
@@ -670,7 +672,7 @@ void loop() {
 						reset_oil();
 #endif
 #ifdef acc_led_enable
-						acc_reset();
+						reset_acc();
 #endif
 #ifdef temp_flash_enable
 						temp_flashed = 0;
@@ -694,7 +696,7 @@ void loop() {
 					reset_oil();
 #endif
 #ifdef acc_led_enable
-					acc_reset();
+					reset_acc();
 #endif
 #ifdef temp_flash_enable
 					temp_flashed = 0;
@@ -765,10 +767,10 @@ void loop() {
 #endif
 #ifdef acc_led_enable
 					if (coolant_temp_c > coolant_c_target_hi) {
-						acc_set();
+						hijack_acc();
 					}
 					else if (coolant_temp_c < coolant_c_target_lo) {
-						acc_reset();
+						reset_acc();
 					}
 #endif
 #ifdef hijack_oil_boost_enable
