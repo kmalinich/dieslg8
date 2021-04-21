@@ -303,6 +303,9 @@ void gauge_sweep() {
 	reset_gauge(0x21);
 	reset_gauge(0x22);
 	reset_gauge(0x23);
+
+	digitalWrite(LED_BUILTIN, LOW);
+	digitalWrite(A3, LOW);
 }
 #endif
 
@@ -344,7 +347,7 @@ void hijack_fuel(unsigned int steps) {
 		return;
 	}
 
-	digitalWrite(LED_BUILTIN, HIGH);
+	digitalWrite(A3, HIGH);
 
 	hijack_fuel_active = 1;
 	hijack_gauge(0x22, steps);
@@ -356,7 +359,7 @@ void reset_fuel() {
 
 	DEBUGLN("[dieslg8][CAN ][FUNC][HIJK][FUEL] Reset");
 
-	digitalWrite(LED_BUILTIN, LOW);
+	digitalWrite(A3, LOW);
 
 	reset_gauge(0x22);
 	hijack_fuel_active = 0;
@@ -401,6 +404,8 @@ void hijack_oil(unsigned int steps) {
 		return;
 	}
 
+	digitalWrite(LED_BUILTIN, HIGH);
+
 	hijack_oil_active = 1;
 	hijack_gauge(0x23, steps);
 }
@@ -410,6 +415,8 @@ void reset_oil() {
 	if (hijack_oil_active == 0) return;
 
 	DEBUGLN("[dieslg8][CAN ][FUNC][HIJK][OIL ] Reset");
+
+	digitalWrite(LED_BUILTIN, LOW);
 
 	reset_gauge(0x23);
 	hijack_oil_active = 0;
@@ -508,7 +515,10 @@ void sdcard_log_perf() {
 void setup() {
 	// Initialize digital pin LED_BUILTIN as an output
 	pinMode(LED_BUILTIN, OUTPUT);
+	pinMode(A3, OUTPUT);
+
 	digitalWrite(LED_BUILTIN, LOW);
+	digitalWrite(A3, LOW);
 
 	// Wait for serial connection when debugging
 	if (DBG) {
@@ -517,28 +527,26 @@ void setup() {
 		// Initialize serial output for logging
 		Serial.begin(115200);
 		while (!Serial) {
-			if (serial_counter > 10) break;
+			if (serial_counter > 50) break;
 			serial_counter++;
 
-			digitalWrite(LED_BUILTIN, LOW);
-			delay(250);
-			digitalWrite(LED_BUILTIN, HIGH);
-			delay(250);
-			digitalWrite(LED_BUILTIN, LOW);
-			delay(250);
-			digitalWrite(LED_BUILTIN, HIGH);
-			delay(250);
+			digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
+			digitalWrite(A3, !digitalRead(A3));
+			delay(100);
 		}
 
-		DEBUG("[dieslg8][INIT][CAN ] serial_counter: "); DEBUGLN(serial_counter);
+		DEBUG("[dieslg8][INIT][SRL ] serial_counter: "); DEBUGLN(serial_counter);
 	}
 
 	digitalWrite(LED_BUILTIN, HIGH);
+	digitalWrite(A3, LOW);
 
 	// Init CAN, baudrate 500k
 	while (CAN.begin(CAN_500KBPS) != CAN_OK) {
 		DEBUGLN("[dieslg8][INIT][CAN ] Waiting");
-		delay(1000);
+		digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
+		digitalWrite(A3, !digitalRead(A3));
+		delay(100);
 	}
 
 	DEBUGLN("[dieslg8][INIT][CAN ] OK");
@@ -555,6 +563,7 @@ void setup() {
 
 	DEBUGLN("[dieslg8][INIT][MAIN] Ready");
 	digitalWrite(LED_BUILTIN, LOW);
+	digitalWrite(A3, LOW);
 }
 
 void loop() {
