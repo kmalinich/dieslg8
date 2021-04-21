@@ -1,5 +1,5 @@
 // Debug mode
-#define DBG false
+#define DBG true
 
 // Debug macro to print messages to serial
 #define DEBUG(x)     if (DBG && Serial) { Serial.print(x);     }
@@ -18,15 +18,15 @@
 // #define code_clear_specific_enable true
 
 // Config: disable/enable turn signal LED flash when coolant temp reaches target
-#define temp_flash_enable true
+// #define temp_flash_enable true
 
 // Config: disable/enable gauge sweep
 #define gauge_sweep_enable true
 
 // Config: disable/enable gauge hijacking
 #define hijack_fuel_boost_enable true
-// #define hijack_fuel_coolant_enable true
-#define hijack_oil_boost_enable true
+#define hijack_fuel_coolant_enable true
+// #define hijack_oil_boost_enable true
 // #define hijack_oil_coolant_enable true
 
 
@@ -140,8 +140,8 @@ void can_send(short address, byte a, byte b, byte c, byte d, byte e, byte f, byt
 
 	unsigned char DataToSend[8] = {a, b, c, d, e, f, g, h};
 
-	delay(25);
 	CAN.sendMsgBuf(address, 0, 8, DataToSend);
+	delay(35);
 }
 
 
@@ -322,8 +322,8 @@ void hijack_fuel_boost() {
 
 #ifdef hijack_fuel_coolant_enable
 void hijack_fuel_coolant() {
-	// Return if coolant_temp_c is under 0 or above max, or engine RPM is under 400
-	if (coolant_temp_c < 0 || coolant_temp_c > coolant_c_max || engine_rpm < 400) {
+	// Return if coolant_temp_c is under 0 or above max
+	if (coolant_temp_c < 0 || coolant_temp_c > coolant_c_max) {
 		return;
 	}
 
@@ -556,15 +556,8 @@ void setup() {
 }
 
 void loop() {
-	// Increment loop counters
-	loop_count_01++;
+	// Increment loop counter
 	loop_count_02++;
-
-	// Request status data every 1900 loops
-	if (loop_count_01 == 1900) {
-		loop_count_01 = 0;
-		if (ignition_run == 1) status_messwertblock_lesen();
-	}
 
 	if (loop_count_02 == 10000000) {
 		loop_count_02 = 0;
@@ -578,6 +571,9 @@ void loop() {
 
 	// Check if incoming data is available
 	if (CAN_MSGAVAIL == CAN.checkReceive()) {
+		// Increment loop counter
+		loop_count_01++;
+
 		bool print_msg = 1;
 
 		// Ignition bitmask values to match against
@@ -819,6 +815,14 @@ void loop() {
 			}
 
 			DEBUGLN();
+		}
+
+		// Request status data every 4 loops
+		if (loop_count_01 == 4) {
+			loop_count_01 = 0;
+			if (ignition_run == 1) {
+				status_messwertblock_lesen();
+			}
 		}
 	}
 }
