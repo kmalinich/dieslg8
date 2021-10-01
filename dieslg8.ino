@@ -1,3 +1,15 @@
+// Enable SD card performance data logging by defining logging_perf_enable
+// #define logging_perf_enable true
+
+// External libraries
+#include <SPI.h>
+#include "mcp_can.h"
+#include "mcp2515_can.h"
+
+#ifdef logging_perf_enable
+#include <SD.h>
+#endif
+
 // Debug mode
 #define DBG false
 
@@ -7,62 +19,61 @@
 #define DEBUG2(x, y) if (DBG && Serial) { Serial.print(x, y);  }
 
 
-// Config: disable/enable SD card performance data logging
-// #define logging_perf_enable true
-
 // Config: Control active cruise LEDs
-// #define acc_led_enable true
+const bool acc_led_enable = 0;
 
 // Config: disable/enable automatic code clearing
-// #define code_clear_all_enable      true
-// #define code_clear_specific_enable true
+const bool code_clear_all_enable       = 0;
+const bool code_clear_specific_enable  = 0;
+
+// Config: disable/enable all turn signal LED hijacking
+const bool hijack_turn_enable = 1;
 
 // Config: disable/enable turn signal LED flash when coolant temp reaches target
-#define temp_flash_enable true
+// hijack_turn_enable must also be set to 1
+const bool temp_flash_enable = 1;
 
 // Config: disable/enable gauge sweep
-#define gauge_sweep_enable true
+const bool gauge_sweep_enable = 1;
 
 // Config: disable/enable fuel gauge hijacking
-#define hijack_fuel_boost_enable true
-// #define hijack_fuel_coolant_enable true
+const bool hijack_fuel_boost_enable   = 1;
+const bool hijack_fuel_coolant_enable = 0;
 
 // Config: disable/enable oil gauge hijacking
-// #define hijack_oil_boost_enable true
-#define hijack_oil_coolant_enable true
+const bool hijack_oil_boost_enable = 0;
+const bool hijack_oil_coolant_enable = 1;
 
 
 // Config: unit limits for gauges
-#define boost_psi_max 40
-#define coolant_c_max 150
+const int boost_psi_max = 40;
+const int coolant_c_max = 150;
 
 // Config: Various value targets
-#define coolant_c_target_hi 76
-#define coolant_c_target_lo 74
+const int coolant_c_target_hi = 76;
+const int coolant_c_target_lo = 74;
 
 
 // Config: step limits for gauges
-#define steps_max_large 4667 // Large gauges (speedo, tach)
-#define steps_max_small 1800 // Small gauges (fuel %, oil)
+const int steps_max_large = 4667; // Large gauges (speedo, tach)
+const int steps_max_small = 1800; // Small gauges (fuel %, oil)
 
 // 1 psi = 68.9475729318 hPa
 // 1 hPA = 0.0145037738 psi
-#define hpa2psi 68.9475729318
-#define psi2hpa 0.0145037738
+const float hpa2psi = 68.9475729318;
+const float psi2hpa = 0.0145037738;
 
-// Config: SPI pins
-#define SPI_CS_CAN 9
-#ifdef logging_perf_enable
-#define SPI_CS_SD  4
-#endif
+// Config: Pins
+const int CAN_INT_PIN = 2;
+const int SPI_CS_CAN  = 9;
+const int SPI_CS_SD   = 4;
 
-// External libraries
-#include <mcp_can.h>
-#include <SPI.h>
 
-#ifdef logging_perf_enable
-#include <SD.h>
-#endif
+// Ignition bitmask values to match against
+const int mask_ignition_acc = 0xC1; // buf[0]
+const int mask_ignition_run = 0xC5; // buf[0]
+const int mask_ignition_str = 0xD5; // buf[0]
+
 
 
 // Status variables
@@ -93,28 +104,21 @@ float boost_psi_target;
 
 
 // Boolean status values
-#ifdef temp_flash_enable
 bool temp_flashed = 0;
-#endif
-#ifdef acc_led_enable
-bool acc_led_on = 0;
-#endif
+bool acc_led_on   = 0;
 
-#if defined(gauge_sweep_enable) || defined(hijack_fuel_boost_enable) || defined(hijack_fuel_coolant_enable)
 bool hijack_fuel_active = 0;
-#endif
-#if defined(gauge_sweep_enable) || defined(hijack_oil_boost_enable) || defined(hijack_oil_coolant_enable)
 bool hijack_oil_active  = 0;
-#endif
+
 
 bool ignition_off = 1;
 bool ignition_acc = 0;
 bool ignition_run = 0;
-bool ignition_sta = 0;
+bool ignition_str = 0;
 
 
-// Set CS pins
-MCP_CAN CAN(SPI_CS_CAN);
+// Set CS pin
+mcp2515_can CAN(SPI_CS_CAN);
 
 // Declare File handles for logging
 #ifdef logging_perf_enable
@@ -125,20 +129,18 @@ File log_file_perf;
 
 // Send CAN message
 void can_send(short address, byte a, byte b, byte c, byte d, byte e, byte f, byte g, byte h) {
-	/*
-		 DEBUG("[dieslg8][CAN ][SEND] 0x");
-		 DEBUG2(address, HEX);
-		 DEBUG(" => ");
-		 DEBUG2(a, HEX); DEBUG(" ");
-		 DEBUG2(b, HEX); DEBUG(" ");
-		 DEBUG2(c, HEX); DEBUG(" ");
-		 DEBUG2(d, HEX); DEBUG(" ");
-		 DEBUG2(e, HEX); DEBUG(" ");
-		 DEBUG2(f, HEX); DEBUG(" ");
-		 DEBUG2(g, HEX); DEBUG(" ");
-		 DEBUG2(h, HEX); DEBUG(" ");
-		 DEBUGLN();
-		 */
+	// DEBUG("[dieslg8][CAN ][SEND] 0x");
+	// DEBUG2(address, HEX);
+	// DEBUG(" => ");
+	// DEBUG2(a, HEX); DEBUG(" ");
+	// DEBUG2(b, HEX); DEBUG(" ");
+	// DEBUG2(c, HEX); DEBUG(" ");
+	// DEBUG2(d, HEX); DEBUG(" ");
+	// DEBUG2(e, HEX); DEBUG(" ");
+	// DEBUG2(f, HEX); DEBUG(" ");
+	// DEBUG2(g, HEX); DEBUG(" ");
+	// DEBUG2(h, HEX); DEBUG(" ");
+	// DEBUGLN();
 
 	unsigned char DataToSend[8] = {a, b, c, d, e, f, g, h};
 
@@ -147,7 +149,6 @@ void can_send(short address, byte a, byte b, byte c, byte d, byte e, byte f, byt
 }
 
 
-#ifdef code_clear_specific_enable
 // Clears these codes:
 // 3FF1 : Mass air flow sensor
 // 40D4 : EGR actuator position control
@@ -160,6 +161,8 @@ void can_send(short address, byte a, byte b, byte c, byte d, byte e, byte f, byt
 // 4B73 : EGR engine exhaust heating control
 // 4CAE : EGR position sensor plausibility
 void code_clear_specific() {
+	if (code_clear_specific_enable != 1) return;
+
 	DEBUGLN("[dieslg8][CAN ][FUNC][DTC ][CLR ] Specific");
 
 	can_send(0x6F1, 0x12, 0x04, 0x18, 0x02, 0xFF, 0xFF, 0x00, 0x00); delay(75);
@@ -178,11 +181,11 @@ void code_clear_specific() {
 
 	reset_turn();
 }
-#endif
 
-#ifdef code_clear_all_enable
 // Clear all DDE codes
 void code_clear_all() {
+	if (code_clear_all_enable != 1) return;
+
 	DEBUGLN("[dieslg8][CAN ][FUNC][DTC ][CLR ] All");
 
 	// hijack_turn(0x01);
@@ -201,11 +204,11 @@ void code_clear_all() {
 
 	// reset_turn();
 }
-#endif
 
 
-#ifdef temp_flash_enable
 void temp_flash() {
+	if (temp_flash_enable != 1) return;
+
 	// Return if already flashed
 	if (temp_flashed == 1) return;
 
@@ -227,16 +230,38 @@ void temp_flash() {
 
 	temp_flashed = 1;
 }
-#endif
+
+// Illuminate turn signal LED(s) in the cluster
+// led_mask:
+// 0x01 : Left
+// 0x02 : Right
+// 0x03 : Both
+void hijack_turn(unsigned int led_mask) {
+	if (hijack_turn_enable != 1) return;
+
+	DEBUGLN("[dieslg8][CAN ][FUNC][KOMB][TURN] Set");
+
+	can_send(0x6F1, 0x60, 0x05, 0x30, 0x2B, 0x06, led_mask, 0x04, 0x00);
+}
+
+// Reset turn signal LED(s) in the cluster
+void reset_turn() {
+	if (hijack_turn_enable != 1) return;
+
+	DEBUGLN("[dieslg8][CAN ][FUNC][KOMB][TURN] Reset");
+
+	can_send(0x6F1, 0x60, 0x03, 0x30, 0x2B, 0x00, 0x00, 0x00, 0x00);
+}
 
 
-#ifdef acc_led_enable
 // Illuminate active cruise LED(s) in the cluster
 // led_mask_1:
 // 0x01 :
 // 0x02 :
 // 0x03 :
 void hijack_acc() {
+	if (acc_led_enable != 1) return;
+
 	// Return if already on
 	if (acc_led_on == 1) return;
 
@@ -250,6 +275,8 @@ void hijack_acc() {
 
 // Reset active cruise LED(s) in the cluster
 void reset_acc() {
+	if (acc_led_enable != 1) return;
+
 	// Return if already off
 	if (acc_led_on == 0) return;
 
@@ -260,32 +287,11 @@ void reset_acc() {
 	// Mark as off
 	acc_led_on = 0;
 }
-#endif
 
 
-#if defined(temp_flash_enable) || defined(code_clear_all_enable) || defined(code_clear_specific_enable)
-// Illuminate turn signal LED(s) in the cluster
-// led_mask:
-// 0x01 : Left
-// 0x02 : Right
-// 0x03 : Both
-void hijack_turn(unsigned int led_mask) {
-	DEBUGLN("[dieslg8][CAN ][FUNC][KOMB][TURN] Set");
-
-	can_send(0x6F1, 0x60, 0x05, 0x30, 0x2B, 0x06, led_mask, 0x04, 0x00);
-}
-
-// Reset turn signal LED(s) in the cluster
-void reset_turn() {
-	DEBUGLN("[dieslg8][CAN ][FUNC][KOMB][TURN] Reset");
-
-	can_send(0x6F1, 0x60, 0x03, 0x30, 0x2B, 0x00, 0x00, 0x00, 0x00);
-}
-#endif
-
-
-#ifdef gauge_sweep_enable
 void gauge_sweep() {
+	if (gauge_sweep_enable != 1) return;
+
 	DEBUGLN("[dieslg8][CAN ][FUNC][KOMB][SWP ] Performing");
 
 	// Speedo/tach to steps_max_large
@@ -307,11 +313,11 @@ void gauge_sweep() {
 	digitalWrite(LED_BUILTIN, LOW);
 	digitalWrite(A3, LOW);
 }
-#endif
 
 
-#ifdef hijack_fuel_boost_enable
 void hijack_fuel_boost() {
+	if (hijack_fuel_boost_enable != 1) return;
+
 	// Return if less than 10 hPa, throttle under 49%, or engine RPM under 1000
 	if (boost_hpa_actual < 10 || throttle_percent < 49 || engine_rpm < 1000) {
 		reset_fuel();
@@ -323,10 +329,10 @@ void hijack_fuel_boost() {
 	unsigned int steps = boost_hpa_actual * (steps_max_small / (boost_psi_max * hpa2psi));
 	hijack_fuel(steps);
 }
-#endif
 
-#ifdef hijack_fuel_coolant_enable
 void hijack_fuel_coolant() {
+	if (hijack_fuel_coolant_enable != 1) return;
+
 	// Return if coolant_temp_c is under 0 or above max, or engine RPM is under 400
 	if (coolant_temp_c < 0 || coolant_temp_c > coolant_c_max || engine_rpm < 400) {
 		return;
@@ -337,10 +343,10 @@ void hijack_fuel_coolant() {
 	unsigned int steps = coolant_temp_c * (steps_max_small / coolant_c_max);
 	hijack_fuel(steps);
 }
-#endif
 
-#if defined(gauge_sweep_enable) || defined(hijack_fuel_boost_enable) || defined(hijack_fuel_coolant_enable)
 void hijack_fuel(unsigned int steps) {
+	if (hijack_fuel_boost_enable != 1 && hijack_fuel_coolant_enable != 1) return;
+
 	// Return if steps are out of bounds
 	if (steps > steps_max_small) {
 		reset_fuel();
@@ -354,6 +360,8 @@ void hijack_fuel(unsigned int steps) {
 }
 
 void reset_fuel() {
+	if (hijack_fuel_boost_enable != 1 && hijack_fuel_coolant_enable != 1) return;
+
 	// Return if hijack is inactive
 	if (hijack_fuel_active == 0) return;
 
@@ -364,11 +372,11 @@ void reset_fuel() {
 	reset_gauge(0x22);
 	hijack_fuel_active = 0;
 }
-#endif
 
 
-#ifdef hijack_oil_boost_enable
 void hijack_oil_boost() {
+	if (hijack_oil_boost_enable != 1) return;
+
 	// Return if less than 10 hPa, throttle under 49%, or engine RPM under 1000
 	if (boost_hpa_target < 10 || throttle_percent < 49 || engine_rpm < 1000) {
 		reset_oil();
@@ -380,10 +388,10 @@ void hijack_oil_boost() {
 	unsigned int steps = boost_hpa_target * (steps_max_small / (boost_psi_max * hpa2psi));
 	hijack_oil(steps);
 }
-#endif
 
-#ifdef hijack_oil_coolant_enable
 void hijack_oil_coolant() {
+	if (hijack_oil_coolant_enable != 1) return;
+
 	// Return if coolant_temp_c is under 0 or above max, or engine RPM is under 400
 	if (coolant_temp_c < 0 || coolant_temp_c > coolant_c_max || engine_rpm < 400) {
 		return;
@@ -394,10 +402,10 @@ void hijack_oil_coolant() {
 	unsigned int steps = coolant_temp_c * (steps_max_small / coolant_c_max);
 	hijack_oil(steps);
 }
-#endif
 
-#if defined(gauge_sweep_enable) || defined(hijack_oil_boost_enable) || defined(hijack_oil_coolant_enable)
 void hijack_oil(unsigned int steps) {
+	if (hijack_oil_boost_enable != 1 && hijack_oil_coolant_enable != 1) return;
+
 	// Return if steps are out of bounds
 	if (steps > steps_max_small) {
 		reset_oil();
@@ -411,6 +419,8 @@ void hijack_oil(unsigned int steps) {
 }
 
 void reset_oil() {
+	if (hijack_oil_boost_enable != 1 && hijack_oil_coolant_enable != 1) return;
+
 	// Return if hijack is inactive
 	if (hijack_oil_active == 0) return;
 
@@ -421,11 +431,10 @@ void reset_oil() {
 	reset_gauge(0x23);
 	hijack_oil_active = 0;
 }
-#endif
+
 
 
 // Hijack a gauge
-#if defined(gauge_sweep_enable) || defined(hijack_fuel_coolant_enable) || defined(hijack_fuel_coolant_enable) || defined(hijack_oil_boost_enable) || defined(hijack_oil_coolant_enable)
 void hijack_gauge(int gauge_id, int steps) {
 	uint8_t msb = (steps / 256); // MSB
 	uint8_t lsb = (steps % 256); // LSB
@@ -443,7 +452,6 @@ void reset_gauge(unsigned int gauge_id) {
 
 	can_send(0x6F1, 0x60, 0x03, 0x30, gauge_id, 0x00, 0xFF, 0xFF, 0xFF);
 }
-#endif
 
 
 // Get data
@@ -494,7 +502,7 @@ void sdcard_log_perf() {
 	log_file_perf.print(ignition_off);     log_file_perf.print(",");
 	log_file_perf.print(ignition_acc);     log_file_perf.print(",");
 	log_file_perf.print(ignition_run);     log_file_perf.print(",");
-	log_file_perf.print(ignition_sta);     log_file_perf.print(",");
+	log_file_perf.print(ignition_str);     log_file_perf.print(",");
 	log_file_perf.print(engine_rpm);       log_file_perf.print(",");
 	log_file_perf.print(throttle_percent); log_file_perf.print(",");
 	log_file_perf.print(coolant_temp_c);   log_file_perf.print(",");
@@ -551,6 +559,15 @@ void setup() {
 
 	DEBUGLN("[dieslg8][INIT][CAN ] OK");
 
+	// There are 2 mask in MCP2515, you need to set both of them
+	CAN.init_Mask(0, 0, 0x3FF);
+	CAN.init_Mask(1, 0, 0x3FF);
+
+	// There are 6 filters in MCP2515
+	CAN.init_Filt(0, 0, 0x130);
+	CAN.init_Filt(1, 0, 0x612);
+	// CAN.init_Filt(2, 0, 0x660);
+
 	// Initialize SD card logging
 #ifdef logging_perf_enable
 	if (!SD.begin(SPI_CS_SD)) {
@@ -579,22 +596,16 @@ void loop() {
 
 	if (loop_count_02 == 10000000) {
 		loop_count_02 = 0;
-#ifdef code_clear_specific_enable
-		if (ignition_run == 1) code_clear_specific();
-#endif
-#ifdef code_clear_all_enable
-		if (ignition_run == 1) code_clear_all();
-#endif
+
+		if (ignition_run == 1) {
+			code_clear_all();
+			code_clear_specific();
+		}
 	}
 
 	// Check if incoming data is available
 	if (CAN_MSGAVAIL == CAN.checkReceive()) {
 		bool print_msg = 1;
-
-		// Ignition bitmask values to match against
-		const int mask_ignition_acc = 0xC1; // buf[0]
-		const int mask_ignition_run = 0xC5; // buf[0]
-		const int mask_ignition_sta = 0xD5; // buf[0]
 
 		// Read CAN message data
 		// len : data length
@@ -610,41 +621,34 @@ void loop() {
 		unsigned long arbid = CAN.getCanId();
 
 		switch (arbid) {
-			case 0x130 : // Ignition status
+			case 0x130 : { // Ignition status
 				print_msg = 0;
 
 				// DEBUGLN("[dieslg8][CAN ][PARS] Ignition status received");
 
-				// Test if all bits in mask_ignition_sta are present in buf[0]
-				if ((buf[0] & mask_ignition_sta) == mask_ignition_sta) {
-					if (ignition_sta != 1) {
+				// Test if all bits in mask_ignition_str are present in buf[0]
+				if ((buf[0] & mask_ignition_str) == mask_ignition_str) {
+					if (ignition_str != 1) {
 						DEBUGLN("[dieslg8][CAN ][IGN ][STA ] Active");
-#ifdef code_clear_all_enable
+
 						code_clear_all();
-#endif
-#ifdef code_clear_specific_enable
 						code_clear_specific();
-#endif
 					}
 
 					if (ignition_run != 1) {
 						DEBUGLN("[dieslg8][CAN ][IGN ][RUN ] Active");
-#ifdef gauge_sweep_enable
-						gauge_sweep();
-#endif
-#ifdef code_clear_specific_enable
-						code_clear_specific();
-#endif
-#ifdef code_clear_all_enable
-						code_clear_all();
-#endif
 
+						gauge_sweep();
+
+						code_clear_all();
+						code_clear_specific();
 					}
 
 					ignition_off = 0;
 					ignition_acc = 0;
 					ignition_run = 1;
-					ignition_sta = 1;
+					ignition_str = 1;
+
 					break;
 				}
 
@@ -652,21 +656,18 @@ void loop() {
 				if ((buf[0] & mask_ignition_run) == mask_ignition_run) {
 					if (ignition_run != 1) {
 						DEBUGLN("[dieslg8][CAN ][IGN ][RUN ] Active");
-#ifdef gauge_sweep_enable
+
 						gauge_sweep();
-#endif
-#ifdef code_clear_specific_enable
-						code_clear_specific();
-#endif
-#ifdef code_clear_all_enable
+
 						code_clear_all();
-#endif
+						code_clear_specific();
 					}
 
 					ignition_off = 0;
 					ignition_acc = 0;
 					ignition_run = 1;
-					ignition_sta = 0;
+					ignition_str = 0;
+
 					break;
 				}
 
@@ -674,52 +675,42 @@ void loop() {
 				if ((buf[0] & mask_ignition_acc) == mask_ignition_acc) {
 					if (ignition_acc != 1) {
 						DEBUGLN("[dieslg8][CAN ][IGN ][ACC ] Active");
-#if defined(hijack_fuel_boost_enable) || defined(hijack_fuel_coolant_enable)
+
 						reset_fuel();
-#endif
-#if defined(hijack_oil_boost_enable) || defined(hijack_oil_coolant_enable)
 						reset_oil();
-#endif
-#ifdef acc_led_enable
+
 						reset_acc();
-#endif
-#ifdef temp_flash_enable
 						temp_flashed = 0;
-#endif
 					}
 
 					ignition_off = 0;
 					ignition_acc = 1;
 					ignition_run = 0;
-					ignition_sta = 0;
+					ignition_str = 0;
+
 					break;
 				}
 
 				// By this point, ignition must be off
 				if (ignition_off != 1) {
 					DEBUGLN("[dieslg8][CAN ][IGN ][OFF ] Active");
-#if defined(hijack_fuel_boost_enable) || defined(hijack_fuel_coolant_enable)
+
 					reset_fuel();
-#endif
-#if defined(hijack_oil_boost_enable) || defined(hijack_oil_coolant_enable)
 					reset_oil();
-#endif
-#ifdef acc_led_enable
 					reset_acc();
-#endif
-#ifdef temp_flash_enable
+
 					temp_flashed = 0;
-#endif
 				}
 
 				ignition_off = 1;
 				ignition_acc = 0;
 				ignition_run = 0;
-				ignition_sta = 0;
+				ignition_str = 0;
 
 				break;
+			} // 0x130
 
-			case 0x612 : // Response to STATUS_MESSWERTE_BLOCK request
+			case 0x612 : { // Response to STATUS_MESSWERTE_BLOCK request
 				print_msg = 0;
 
 				// TODO: Why the f**k doesnt the case statement work here
@@ -730,9 +721,8 @@ void loop() {
 					ambient_hpa = value_01 * 0.030518;
 					ambient_psi = ambient_hpa / hpa2psi;
 
-#ifdef hijack_fuel_boost_enable
 					float boost_hpa_actual_last = boost_hpa_actual;
-#endif
+
 					boost_hpa_actual = (value_02 * 0.091554) - ambient_hpa;
 					if (boost_hpa_actual < 0) boost_hpa_actual = 0;
 
@@ -743,55 +733,42 @@ void loop() {
 					// DEBUG("[dieslg8][CAN ][DATA][AMBp] "); DEBUGLN(ambient_psi);
 					// DEBUG("[dieslg8][CAN ][DATA][BSAp] "); DEBUGLN(boost_psi_actual);
 
-#ifdef hijack_fuel_boost_enable
-					if (boost_hpa_actual_last != boost_hpa_actual) hijack_fuel_boost();
-#endif
+					if (boost_hpa_actual_last != boost_hpa_actual) {
+						hijack_fuel_boost();
+					}
 				}
 				else if (data_expected == 1) { // 1 = Coolant temp + Boost target
 					unsigned int value_01 = (buf[4] << 8) | buf[5];
-#if defined(hijack_fuel_coolant_enable) || defined(hijack_oil_coolant_enable)
 					unsigned int value_02 = (buf[6] << 8) | buf[7];
-#endif
 
-#ifdef hijack_oil_boost_enable
 					float boost_hpa_target_last = boost_hpa_target;
-#endif
+
 					boost_hpa_target = (value_01 * 0.091554) - ambient_hpa;
 					if (boost_hpa_target < 0) boost_hpa_target = 0;
 
 					boost_psi_target = boost_hpa_target / hpa2psi;
 
-#if defined(hijack_fuel_coolant_enable) || defined(hijack_oil_coolant_enable)
 					int coolant_temp_c_last = coolant_temp_c;
 					coolant_temp_c = (value_02 * 0.01) - 100;
-#endif
 
 					// DEBUG("[dieslg8][CAN ][DATA][BSTh] "); DEBUGLN(boost_hpa_target);
 					// DEBUG("[dieslg8][CAN ][DATA][BSTp] "); DEBUGLN(boost_psi_target);
 					// DEBUG("[dieslg8][CAN ][DATA][BS p] "); DEBUG(boost_psi_actual); DEBUG("/"); DEBUGLN(boost_psi_target);
 					// DEBUG("[dieslg8][CAN ][DATA][CLTc] "); DEBUGLN(coolant_temp_c);
 
-#ifdef temp_flash_enable
-					if (coolant_temp_c > coolant_c_target_hi) temp_flash();
-#endif
-#ifdef acc_led_enable
+
 					if (coolant_temp_c > coolant_c_target_hi) {
+						temp_flash();
 						hijack_acc();
 					}
 					else if (coolant_temp_c < coolant_c_target_lo) {
 						reset_acc();
 					}
-#endif
-#ifdef hijack_oil_boost_enable
-					if (boost_hpa_target_last != boost_hpa_target) hijack_oil_boost();
-#endif
 
-#ifdef hijack_fuel_coolant_enable
+					if (boost_hpa_target_last != boost_hpa_target) hijack_oil_boost();
+
 					if (coolant_temp_c_last != coolant_temp_c) hijack_fuel_coolant();
-#endif
-#ifdef hijack_oil_coolant_enable
 					if (coolant_temp_c_last != coolant_temp_c) hijack_oil_coolant();
-#endif
 				}
 				else if (data_expected == 2) { // 2 = Pedal position + Engine RPM
 					unsigned int value_01 = (buf[4] << 8) | buf[5]; // Pedal
@@ -803,19 +780,18 @@ void loop() {
 					// DEBUG("[dieslg8][CAN ][DATA][THR%] "); DEBUGLN(throttle_percent);
 					// DEBUG("[dieslg8][CAN ][DATA][RPM ] "); DEBUGLN(engine_rpm);
 
-#ifdef hijack_fuel_boost_enable
 					hijack_fuel_boost();
-#endif
-#ifdef hijack_oil_boost_enable
 					hijack_oil_boost();
-#endif
 				}
 
 				break;
+			} // 0x612
 
-			case 0x660 : // ACK to DIA message
+			case 0x660 : { // ACK to DIA message
 				print_msg = 0;
+			} // 0x660
 		}
+
 
 		if (print_msg == 1) {
 			// DEBUGLN("----------------------------------------");
